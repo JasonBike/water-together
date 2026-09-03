@@ -192,16 +192,17 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
     chart.setOption({
       animationDuration: 500,
       animationEasing: 'cubicOut',
-      grid: { top: 43, right: 22, bottom: 32, left: 38, containLabel: true },
+      grid: { top: 50, right: 22, bottom: 32, left: 38, containLabel: true },
       legend: {
         top: 0,
         right: 3,
         selectedMode: 'multiple',
-        itemWidth: 9,
-        itemHeight: 9,
-        itemGap: 14,
+        itemWidth: 12,
+        itemHeight: 12,
+        itemGap: 18,
         icon: 'circle',
-        textStyle: { color: '#64777d', fontSize: 11 },
+        inactiveColor: '#bdc6c5',
+        textStyle: { color: '#536970', fontSize: 14, fontWeight: 600 },
       },
       tooltip: {
         trigger: 'axis',
