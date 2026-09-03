@@ -35,13 +35,45 @@ npm run dev
 npm run build
 ```
 
-生产环境只需要一个进程：
+## 生产环境启动
+
+目标服务器需要 Node.js `22.5.0` 或更高版本：
+
+```bash
+node --version
+```
+
+在服务器上执行：
+
+```bash
+git clone git@github.com:JasonBike/water-together.git
+cd water-together
+npm ci
+npm run build
+PORT=8787 node server.mjs
+```
+
+启动后访问：`http://服务器地址:8787/`。
+
+`server.mjs` 会同时提供前端静态文件和 `/api` 接口，运行时只需要这一个 Node 进程，不需要再启动 SQLite、MySQL 或 Redis 进程。需要后台托管时，将下面这个命令交给 systemd、Docker 或其他进程管理器即可：
+
+```bash
+PORT=8787 node server.mjs
+```
+
+也可以使用快捷命令（会先构建再启动）：
 
 ```bash
 npm start
 ```
 
-它会先构建前端，再由同一个 Node 进程提供 `dist` 静态文件和 `/api` 接口，默认监听 `8787` 端口。
+生产数据默认写入 `data/water-together.sqlite`，请确保运行用户对 `data/` 有写权限，并把该目录加入备份。建议把数据库放到应用目录之外：
+
+可通过环境变量修改监听端口或数据库文件位置：
+
+```bash
+PORT=8080 WATER_DB_PATH=/var/lib/water-together/water.sqlite node server.mjs
+```
 
 ## 功能明细
 
@@ -68,6 +100,122 @@ npm start
 - Vite
 - ECharts（按需加载折线图、坐标轴、Tooltip 和 Canvas 渲染器）
 - CSS 原生响应式布局与插画式视觉
+
+## API 接口
+
+生产环境 API 和页面使用同一个地址，默认基地址为 `http://localhost:8787`。开发环境页面运行在 `5173`，Vite 会自动代理 `/api` 到 `8787`。
+
+所有写接口都使用 JSON 请求体，并返回 JSON；成功删除返回 `204 No Content`。
+
+### 获取初始化数据
+
+```http
+GET /api/bootstrap
+```
+
+返回成员和全部记录：
+
+```json
+{
+  "members": [
+    {
+      "id": "member-abc",
+      "name": "小兔",
+      "emoji": "🐰",
+      "color": "#f8c8cc",
+      "gender": "secret",
+      "cupCapacity": 350
+    }
+  ],
+  "actions": [
+    {
+      "id": "action-abc",
+      "memberId": "member-abc",
+      "type": "drink",
+      "date": "2026-09-03",
+      "time": "14:30",
+      "createdAt": 1770000000000
+    }
+  ]
+}
+```
+
+### 创建或更新成员
+
+```http
+POST /api/members
+Content-Type: application/json
+```
+
+请求字段：
+
+```json
+{
+  "id": "member-abc",
+  "name": "小兔",
+  "emoji": "🐰",
+  "color": "#f8c8cc",
+  "gender": "female",
+  "cupCapacity": 350,
+  "createdAt": 1770000000000
+}
+```
+
+`name` 最多 12 个字符；`gender` 可选 `female`、`male`、`secret`；`cupCapacity` 可选 `250`、`350`、`500`、`750`。同名成员会执行更新，不会重复创建。成功返回成员对象，参数不合法返回 `400`。
+
+### 新增一条记录
+
+```http
+POST /api/actions
+Content-Type: application/json
+```
+
+请求字段：
+
+```json
+{
+  "id": "action-abc",
+  "memberId": "member-abc",
+  "type": "fetch",
+  "date": "2026-09-03",
+  "time": "14:30",
+  "createdAt": 1770000000000
+}
+```
+
+`type` 可选：
+
+- `fetch`：接水
+- `drink`：喝水
+- `restroom`：上厕所
+
+成员不存在或字段不合法返回 `400`，成功返回 `201` 和保存后的记录。
+
+### 撤销一条记录
+
+```http
+DELETE /api/actions/{actionId}
+```
+
+例如：
+
+```http
+DELETE /api/actions/action-abc
+```
+
+成功返回 `204`。
+
+### 清空某成员某天的记录
+
+```http
+DELETE /api/actions?memberId=member-abc&date=2026-09-03
+```
+
+只删除指定成员、指定日期的记录，成功返回 `204`。前端只会对当前登录成员启用此操作。
+
+### API 权限边界
+
+当前是无密码昵称原型：成员和记录接口没有服务端登录态，前端负责把别人的空间设为只读。因此它适合内网、个人服务器或原型体验；如果公开部署，需要增加 Cookie/Token 登录，并在服务端校验操作者是否有权写入对应 `memberId`。
 
 ## 数据、账号与权限
 
