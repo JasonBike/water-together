@@ -1292,6 +1292,19 @@ input:focus-visible {
   font-weight: 750;
 }
 
+.hydrate-card__tools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.reset-button--card {
+  flex: 0 0 auto;
+}
+
 .readonly-badge {
   align-self: center;
   padding: 6px 8px;
@@ -2991,15 +3004,20 @@ body {
     width: 100%;
   }
 
+  .hydrate-card__tools {
+    width: 100%;
+    margin-top: 12px;
+    justify-content: flex-start;
+  }
+
   .hydrate-card .capacity-display {
     width: 100%;
-    margin-top: 14px;
+    margin-top: 0;
   }
 
   .hydrate-card .readonly-badge {
-    position: absolute;
-    top: 0;
-    right: 0;
+    position: static;
+    margin-left: auto;
   }
 
   .hydrate-overview {

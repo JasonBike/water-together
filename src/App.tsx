@@ -875,8 +875,6 @@ export default function App() {
   if (!data.currentUser) return <LoginScreen onLogin={login} serverError={requestError} />
   if (!selectedMember) return null
 
-  const orderedActions = [...dayActions].sort((a, b) => b.createdAt - a.createdAt)
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -951,15 +949,25 @@ export default function App() {
                   <span className="card-kicker"><span>✦</span> {selectedMember.name} 的今日水站</span>
                   <h2>今天接了几杯水？</h2>
                 </div>
-                <div className="capacity-display" aria-label={`每杯容量 ${selectedMember.cupCapacity} 毫升`}>
-                  <span className="capacity-display__cup" aria-hidden="true">🥛</span>
-                  <span className="capacity-display__copy">
-                    <small>我的水杯容量</small>
-                    <strong>{selectedMember.cupCapacity}<em> ml</em></strong>
-                    <small>每杯 · 接水目标 8 次</small>
-                  </span>
+                <div className="hydrate-card__tools">
+                  <div className="capacity-display" aria-label={`每杯容量 ${selectedMember.cupCapacity} 毫升`}>
+                    <span className="capacity-display__cup" aria-hidden="true">🥛</span>
+                    <span className="capacity-display__copy">
+                      <small>我的水杯容量</small>
+                      <strong>{selectedMember.cupCapacity}<em> ml</em></strong>
+                      <small>每杯 · 接水目标 8 次</small>
+                    </span>
+                  </div>
+                  <button
+                    className="reset-button reset-button--card"
+                    onClick={resetDay}
+                    disabled={!canRecord || !selectedActions.length}
+                    title={!canRecord ? '只能重置当前登录账号的记录' : '清空当前日期自己的记录'}
+                  >
+                    重置本日
+                  </button>
+                  {!canRecord && <span className="readonly-badge">只读</span>}
                 </div>
-                {!canRecord && <span className="readonly-badge">只读</span>}
               </div>
 
               <div className="hydrate-overview">
@@ -1022,46 +1030,6 @@ export default function App() {
 
             <WaterRhythmChart actions={selectedActions} />
 
-            <section className="timeline-card">
-              <div className="card-heading card-heading--inline">
-                <div>
-                  <span className="card-kicker"><span>♡</span> GULU MOMENTS</span>
-                  <h2>{isToday ? '今天的咕噜动态' : `${formatDate(selectedDate)}的记录`}</h2>
-                </div>
-                <div className="timeline-actions">
-                  <span className="record-count">共 {dayActions.length} 条</span>
-                  <button
-                    className="reset-button"
-                    onClick={resetDay}
-                    disabled={!canRecord || !selectedActions.length}
-                    title={!canRecord ? '只能重置当前登录账号的记录' : '清空当前日期自己的记录'}
-                  >
-                    重置本日
-                  </button>
-                </div>
-              </div>
-              {orderedActions.length === 0 ? (
-                <EmptyTimeline />
-              ) : (
-                <div className="timeline-list">
-                  {orderedActions.map((action) => {
-                    const member = data.members.find((item) => item.id === action.memberId)
-                    if (!member) return null
-                    return (
-                      <div className="timeline-item" key={action.id}>
-                        <span className="timeline-item__avatar" style={{ background: member.color }}>{member.emoji}</span>
-                        <span className={`timeline-item__dot timeline-item__dot--${action.type}`} />
-                        <div>
-                          <strong>{member.name}</strong>
-                          <p>{action.type === 'fetch' ? '接了一杯水，准备补充能量' : action.type === 'drink' ? '咕噜咕噜喝水啦' : '去了一趟洗手间，轻松一下'}</p>
-                        </div>
-                        <time>{action.time}</time>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </section>
           </div>
 
           <aside className="dashboard-side">
