@@ -2828,6 +2828,10 @@ body {
 }
 
 @media (max-width: 720px) {
+  body {
+    overflow-x: hidden;
+  }
+
   .login-page {
     padding: 14px;
   }
@@ -2880,6 +2884,28 @@ body {
     display: none;
   }
 
+  .profile-chip > span.profile-chip__identity {
+    display: flex;
+  }
+
+  .profile-chip__identity strong {
+    max-width: 62px;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-chip__identity small {
+    font-size: 8px;
+  }
+
+  .logout-button {
+    padding-right: 0;
+    padding-left: 5px;
+    font-size: 12px;
+  }
+
   .topbar__right {
     gap: 6px;
   }
@@ -2896,11 +2922,18 @@ body {
   }
 
   .welcome-row h1 {
-    font-size: 24px;
+    font-size: 25px;
+  }
+
+  .welcome-row p {
+    max-width: 290px;
+    font-size: 13px;
+    line-height: 1.65;
   }
 
   .date-switcher {
     width: 100%;
+    height: 59px;
   }
 
   .date-controls {
@@ -2913,6 +2946,7 @@ body {
   }
 
   .member-strip {
+    margin-top: 27px;
     align-items: flex-start;
     flex-direction: column;
   }
@@ -2933,7 +2967,8 @@ body {
   }
 
   .hydrate-card {
-    padding: 25px 20px 22px;
+    padding: 22px 17px 20px;
+    border-radius: 21px;
   }
 
   .hydrate-card .card-heading,
@@ -2948,8 +2983,43 @@ body {
     margin-left: auto;
   }
 
+  .hydrate-card .card-heading {
+    gap: 0;
+  }
+
+  .hydrate-card .card-heading > div:first-child {
+    width: 100%;
+  }
+
+  .hydrate-card .capacity-display {
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .hydrate-card .readonly-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
   .hydrate-overview {
+    gap: 20px;
     grid-template-columns: 1fr;
+  }
+
+  .progress-ring {
+    width: 164px;
+    height: 164px;
+  }
+
+  .progress-ring::before {
+    width: 146px;
+    height: 146px;
+  }
+
+  .progress-ring__inside {
+    width: 130px;
+    height: 130px;
   }
 
   .action-grid {
@@ -2957,7 +3027,8 @@ body {
   }
 
   .water-action {
-    min-height: 105px;
+    min-height: 96px;
+    padding: 14px 15px;
   }
 
   .cup-trail {
@@ -2965,11 +3036,23 @@ body {
   }
 
   .timeline-card {
-    padding: 24px 20px;
+    padding: 22px 17px;
+    border-radius: 21px;
   }
 
   .chart-card {
-    padding: 24px 20px 18px;
+    padding: 22px 17px 17px;
+    border-radius: 21px;
+  }
+
+  .chart-card .card-heading {
+    gap: 10px;
+  }
+
+  .chart-legend {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 11px;
   }
 
   .chart-canvas {
@@ -2992,6 +3075,44 @@ body {
 
   .dashboard-side {
     display: flex;
+  }
+
+  .side-notes .love-note-card {
+    padding: 23px 20px 17px;
+  }
+
+  .side-notes .love-note-card blockquote {
+    font-size: 20px;
+  }
+
+  .summary-card,
+  .team-card {
+    border-radius: 21px;
+  }
+
+  .summary-card {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+
+  .summary-total {
+    gap: 6px;
+  }
+
+  .summary-total > div {
+    min-height: 62px;
+  }
+
+  .summary-total span {
+    font-size: 10px;
+  }
+
+  .summary-row__counts {
+    gap: 5px;
+  }
+
+  .date-popover {
+    width: min(286px, calc(100vw - 28px));
   }
 
   .toast {
