@@ -163,7 +163,7 @@ Content-Type: application/json
 
 `name` 最多 12 个字符；`gender` 可选 `female`、`male`、`secret`；`cupCapacity` 可选 `250`、`350`、`500`、`750`。同名成员会执行更新，不会重复创建。成功返回成员对象，参数不合法返回 `400`。
 
-### 新增一条记录
+### 增加一次记录（+1）
 
 ```http
 POST /api/actions
@@ -189,9 +189,24 @@ Content-Type: application/json
 - `drink`：喝水
 - `restroom`：上厕所
 
-成员不存在或字段不合法返回 `400`，成功返回 `201` 和保存后的记录。
+一次 `POST /api/actions` 就代表对应类型增加 1 次。成员不存在或字段不合法返回 `400`，成功返回 `201` 和保存后的记录。
 
-### 撤销一条记录
+例如增加一次喝水：
+
+```bash
+curl -X POST http://localhost:8787/api/actions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "id": "action-drink-001",
+    "memberId": "member-abc",
+    "type": "drink",
+    "date": "2026-09-03",
+    "time": "14:30",
+    "createdAt": 1770000000000
+  }'
+```
+
+### 减少一次记录（-1）
 
 ```http
 DELETE /api/actions/{actionId}
@@ -205,13 +220,15 @@ DELETE /api/actions/action-abc
 
 成功返回 `204`。
 
+接口没有直接修改某个总数的 `count` 参数，减少次数的方式是删除对应的那一条 action。前端的“撤销”按钮就是调用这个接口；删除后，统计、图表和汇总会重新按剩余 action 计算。
+
 ### 清空某成员某天的记录
 
 ```http
 DELETE /api/actions?memberId=member-abc&date=2026-09-03
 ```
 
-只删除指定成员、指定日期的记录，成功返回 `204`。前端只会对当前登录成员启用此操作。
+只删除指定成员、指定日期的全部记录，成功返回 `204`。它相当于把该成员当天的接水、喝水和上厕所次数全部归零；前端只会对当前登录成员启用此操作。
 
 ### API 权限边界
 
