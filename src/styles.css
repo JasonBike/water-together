@@ -390,6 +390,81 @@ input:focus-visible {
   margin-top: 38px;
 }
 
+.account-picker {
+  margin-bottom: 23px;
+  padding: 13px 13px 12px;
+  border: 1px solid #e8eeee;
+  border-radius: 15px;
+  background: #f8fbfa;
+}
+
+.account-picker__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.account-picker__heading label {
+  margin: 0;
+  color: #53666c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-picker__heading span {
+  color: #89999d;
+  font-size: 10px;
+}
+
+.account-picker__list {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.account-picker__list button {
+  display: flex;
+  min-width: 74px;
+  height: 52px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px 5px 5px;
+  border: 1px solid #e5e9e6;
+  border-radius: 12px;
+  color: #68777c;
+  background: white;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  transition: .18s ease;
+}
+
+.account-picker__list button:hover {
+  border-color: #b6dce4;
+  background: #f6fcfc;
+  transform: translateY(-1px);
+}
+
+.account-picker__list button.is-picked {
+  border-color: #7fc3d8;
+  color: #4e8798;
+  background: #e9f6f8;
+  box-shadow: 0 0 0 2px rgba(127, 195, 216, .12);
+}
+
+.account-picker__list button > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  font-size: 17px;
+  place-items: center;
+}
+
 .login-form label,
 .member-modal label {
   display: block;

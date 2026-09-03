@@ -392,12 +392,22 @@ function DatePicker({ value, maxDate, onChange }: DatePickerProps) {
   )
 }
 
-function LoginScreen({ onLogin, serverError = '' }: { onLogin: (profile: LoginProfile) => void; serverError?: string }) {
+function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (profile: LoginProfile) => void; serverError?: string; members?: Member[] }) {
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState<Gender>('secret')
   const [cupCapacity, setCupCapacity] = useState<CupCapacity>(350)
   const [emoji, setEmoji] = useState(EMOJIS[0])
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  function selectAccount(member: Member) {
+    setSelectedAccountId(member.id)
+    setNickname(member.name)
+    setGender(member.gender)
+    setCupCapacity(member.cupCapacity)
+    setEmoji(member.emoji)
+    setError('')
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -449,6 +459,27 @@ function LoginScreen({ onLogin, serverError = '' }: { onLogin: (profile: LoginPr
             <p>不需要密码，留下昵称，选好你的专属小设置就可以开始。</p>
           </div>
           <form className="login-form" onSubmit={submit}>
+            {members.length > 0 && (
+              <div className="account-picker">
+                <div className="account-picker__heading">
+                  <label>选择已有账号</label>
+                  <span>或者输入新昵称</span>
+                </div>
+                <div className="account-picker__list">
+                  {members.map((member) => (
+                    <button
+                      type="button"
+                      key={member.id}
+                      className={selectedAccountId === member.id ? 'is-picked' : ''}
+                      onClick={() => selectAccount(member)}
+                    >
+                      <span style={{ background: member.color }}>{member.emoji}</span>
+                      <strong>{member.name}</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <label htmlFor="nickname">你的昵称</label>
             <div className={`nickname-field ${error ? 'nickname-field--error' : ''}`}>
               <span aria-hidden="true">☺</span>
@@ -457,6 +488,7 @@ function LoginScreen({ onLogin, serverError = '' }: { onLogin: (profile: LoginPr
                 value={nickname}
                 onChange={(event) => {
                   setNickname(event.target.value)
+                  setSelectedAccountId(null)
                   setError('')
                 }}
                 placeholder="比如：小兔、阿布……"
@@ -872,7 +904,7 @@ export default function App() {
   }
 
   if (isLoading) return <AppLoading />
-  if (!data.currentUser) return <LoginScreen onLogin={login} serverError={requestError} />
+  if (!data.currentUser) return <LoginScreen onLogin={login} serverError={requestError} members={data.members} />
   if (!selectedMember) return null
 
   return (
