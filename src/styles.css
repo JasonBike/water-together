@@ -30,6 +30,33 @@ body {
     #fbf8f3;
 }
 
+.app-loading {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  color: #718389;
+  background: #fbf8f3;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+.server-error {
+  margin: 14px 0 0;
+  padding: 9px 12px;
+  border: 1px solid #efd6d2;
+  border-radius: 10px;
+  color: #a15f66;
+  background: #fff5f2;
+  font-size: 11px;
+  text-align: center;
+}
+
+.server-error--dashboard {
+  margin: -15px 0 20px;
+}
+
 button,
 input {
   font: inherit;

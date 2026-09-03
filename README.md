@@ -21,16 +21,27 @@
 
 ```bash
 npm install
+npm run dev:api
+
+# 另开一个终端，启动 Vite 热更新页面
 npm run dev
 ```
 
-默认开发地址为 `http://localhost:5173/`。
+开发时 API 地址为 `http://localhost:8787/`，页面地址为 `http://localhost:5173/`。Vite 会把 `/api` 请求代理到 API 进程。
 
 生产构建：
 
 ```bash
 npm run build
 ```
+
+生产环境只需要一个进程：
+
+```bash
+npm start
+```
+
+它会先构建前端，再由同一个 Node 进程提供 `dist` 静态文件和 `/api` 接口，默认监听 `8787` 端口。
 
 ## 功能明细
 
@@ -47,7 +58,7 @@ npm run build
 - ECharts 当日水站节奏折线图：按小时展示接水、喝水和上厕所的次数集中度
 - 单次操作撤销
 - 按当前日期重置当前账号记录（清空前确认）
-- 浏览器本地持久化（`localStorage`）
+- SQLite 文件持久化（`data/water-together.sqlite`）
 - 桌面与移动端响应式布局
 
 ## 技术栈
@@ -60,12 +71,12 @@ npm run build
 
 ## 数据、账号与权限
 
-当前版本没有后端，成员资料和饮水记录都保存在当前浏览器的 `localStorage` 中。
+成员资料和饮水记录由单进程 Node API 写入 SQLite 文件 `data/water-together.sqlite`。SQLite 使用 WAL 和事务模式，不需要单独启动数据库服务。
 
-- 同一浏览器里输入相同昵称，会找到并更新对应成员资料。
-- 不同浏览器或设备之间不会自动同步。
-- “查看别人”只是前端只读视图，不代表后端安全隔离；正式上线时仍需要服务端鉴权和数据权限校验。
-- 后续接入账号系统或云端同步时，可以保留现有界面，替换数据读写和权限层。
+- 同一昵称对应成员表中的一条成员记录，登录时会更新昵称对应的头像、性别和水杯容量。
+- 不同浏览器和设备访问同一个部署地址时，会读取同一个 SQLite 文件，因此可以共享数据。
+- “查看别人”是前端只读视图；当前昵称登录方案没有密码，正式上线时仍需要服务端鉴权和权限校验。
+- SQLite 文件不应提交到 Git，部署时请备份 `data/` 目录。
 
 ## 目录结构
 
@@ -76,6 +87,8 @@ water-together/
 │   ├── main.tsx      # React 入口
 │   └── styles.css    # 页面视觉、响应式和动画
 ├── index.html
+├── server.mjs       # 静态文件服务、API 和 SQLite 持久化
+├── data/             # 运行时创建，保存 SQLite 文件
 ├── package.json
 └── vite.config.ts
 ```

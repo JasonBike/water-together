@@ -41,7 +41,7 @@ type AppData = {
   actions: WaterAction[]
 }
 
-const STORAGE_KEY = 'gulu-diary-v1'
+const SESSION_KEY = 'gulu-diary-session-v1'
 const EMOJIS = ['🐰', '🐻', '🐱', '🐶', '🦊', '🐼', '🐹', '🐣']
 const COLORS = ['#f8c8cc', '#b9dff0', '#f7d59b', '#cfdcb4', '#d9c9ef', '#f4bd9f']
 const CUP_OPTIONS: Array<{ value: CupCapacity; label: string; note: string }> = [
@@ -62,37 +62,16 @@ const emptyData: AppData = {
   actions: [],
 }
 
-function loadData(): AppData {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return emptyData
-    const parsed = JSON.parse(raw) as Partial<AppData>
-    const rawMembers = Array.isArray(parsed.members) ? parsed.members : []
-    const members: Member[] = rawMembers.map((rawMember, index) => {
-      const member = rawMember as Partial<Member>
-      const cupCapacity = CUP_OPTIONS.some((option) => option.value === member.cupCapacity)
-        ? member.cupCapacity as CupCapacity
-        : 350
-      const gender: Gender = member.gender === 'female' || member.gender === 'male' || member.gender === 'secret'
-        ? member.gender
-        : 'secret'
-      return {
-        id: typeof member.id === 'string' ? member.id : `member-${index}`,
-        name: typeof member.name === 'string' && member.name ? member.name : `小伙伴${index + 1}`,
-        emoji: typeof member.emoji === 'string' && EMOJIS.includes(member.emoji) ? member.emoji : EMOJIS[index % EMOJIS.length],
-        color: typeof member.color === 'string' ? member.color : COLORS[index % COLORS.length],
-        gender,
-        cupCapacity,
-      }
-    })
-    return {
-      currentUser: typeof parsed.currentUser === 'string' ? parsed.currentUser : null,
-      members,
-      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
-    }
-  } catch {
-    return emptyData
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    ...init,
+  })
+  if (!response.ok) {
+    throw new Error(`API ${response.status}`)
   }
+  if (response.status === 204) return undefined as T
+  return response.json() as Promise<T>
 }
 
 function localDateKey(date = new Date()) {
@@ -413,7 +392,7 @@ function DatePicker({ value, maxDate, onChange }: DatePickerProps) {
   )
 }
 
-function LoginScreen({ onLogin }: { onLogin: (profile: LoginProfile) => void }) {
+function LoginScreen({ onLogin, serverError = '' }: { onLogin: (profile: LoginProfile) => void; serverError?: string }) {
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState<Gender>('secret')
   const [cupCapacity, setCupCapacity] = useState<CupCapacity>(350)
@@ -549,7 +528,8 @@ function LoginScreen({ onLogin }: { onLogin: (profile: LoginProfile) => void }) 
               开始记录 <span aria-hidden="true">→</span>
             </button>
           </form>
-          <p className="privacy-note"><span aria-hidden="true">⌁</span> 数据只保存在当前浏览器里，轻松又安心</p>
+          {serverError && <p className="server-error" role="alert">{serverError}</p>}
+          <p className="privacy-note"><span aria-hidden="true">⌁</span> 数据保存在小水站服务器里，换设备也能继续记录</p>
         </div>
       </section>
     </main>
@@ -684,8 +664,19 @@ function EmptyTimeline() {
   )
 }
 
+function AppLoading() {
+  return (
+    <main className="app-loading">
+      <Logo />
+      <span>正在打开小水站…</span>
+    </main>
+  )
+}
+
 export default function App() {
-  const [data, setData] = useState<AppData>(loadData)
+  const [data, setData] = useState<AppData>(emptyData)
+  const [isLoading, setIsLoading] = useState(true)
+  const [requestError, setRequestError] = useState('')
   const [selectedDate, setSelectedDate] = useState(localDateKey)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showAddMember, setShowAddMember] = useState(false)
@@ -694,8 +685,21 @@ export default function App() {
   const [actionBurst, setActionBurst] = useState<{ type: ActionType; id: string } | null>(null)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  }, [data])
+    let active = true
+    apiRequest<{ members: Member[]; actions: WaterAction[] }>('/api/bootstrap')
+      .then((payload) => {
+        if (!active) return
+        const savedUser = localStorage.getItem(SESSION_KEY)
+        setData({ currentUser: savedUser, members: payload.members, actions: payload.actions })
+      })
+      .catch(() => {
+        if (active) setRequestError('小水站还没有启动，请先运行 npm run start')
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     if (selectedMemberId && data.members.some((member) => member.id === selectedMemberId)) return
@@ -741,40 +745,46 @@ export default function App() {
   const summaryRestroomTotal = summaryRows.reduce((total, row) => total + row.restroom, 0)
   const summaryVolumeTotal = summaryRows.reduce((total, row) => total + row.volume, 0)
 
-  function login(profile: LoginProfile) {
-    setData((previous) => {
-      const existing = previous.members.find((member) => member.name === profile.nickname)
-      if (existing) {
-        setSelectedMemberId(existing.id)
-        return {
-          ...previous,
-          currentUser: profile.nickname,
-          members: previous.members.map((member) => member.id === existing.id
-            ? { ...member, emoji: profile.emoji, gender: profile.gender, cupCapacity: profile.cupCapacity }
-            : member),
-        }
-      }
-      const member: Member = {
-        id: uid('member'),
-        name: profile.nickname,
-        emoji: profile.emoji,
-        color: COLORS[previous.members.length % COLORS.length],
-        gender: profile.gender,
-        cupCapacity: profile.cupCapacity,
-      }
+  async function login(profile: LoginProfile) {
+    try {
+      const existing = data.members.find((member) => member.name === profile.nickname)
+      const member = await apiRequest<Member>('/api/members', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: existing?.id || uid('member'),
+          name: profile.nickname,
+          emoji: profile.emoji,
+          color: existing?.color || COLORS[data.members.length % COLORS.length],
+          gender: profile.gender,
+          cupCapacity: profile.cupCapacity,
+          createdAt: Date.now(),
+        }),
+      })
+      setData((previous) => ({
+        ...previous,
+        currentUser: profile.nickname,
+        members: previous.members.some((item) => item.id === member.id)
+          ? previous.members.map((item) => item.id === member.id ? member : item)
+          : [...previous.members, member],
+      }))
       setSelectedMemberId(member.id)
-      return { ...previous, currentUser: profile.nickname, members: [...previous.members, member] }
-    })
+      localStorage.setItem(SESSION_KEY, profile.nickname)
+      setRequestError('')
+    } catch {
+      setRequestError('登录信息暂时没保存成功，请检查服务是否启动')
+    }
   }
 
   function logout() {
     setData((previous) => ({ ...previous, currentUser: null }))
     setSelectedMemberId(null)
+    localStorage.removeItem(SESSION_KEY)
   }
 
-  function addMember(name: string, emoji: string) {
+  async function addMember(name: string, emoji: string) {
     const existing = data.members.find((member) => member.name === name)
     if (existing) {
+      setSelectedMemberId(existing.id)
       setShowAddMember(false)
       return
     }
@@ -786,8 +796,16 @@ export default function App() {
       gender: 'secret',
       cupCapacity: 350,
     }
-    setData((previous) => ({ ...previous, members: [...previous.members, member] }))
-    setShowAddMember(false)
+    try {
+      const savedMember = await apiRequest<Member>('/api/members', {
+        method: 'POST',
+        body: JSON.stringify({ ...member, cupCapacity: member.cupCapacity, createdAt: Date.now() }),
+      })
+      setData((previous) => ({ ...previous, members: [...previous.members, savedMember] }))
+      setShowAddMember(false)
+    } catch {
+      setRequestError('这位搭子暂时没有加入成功，请稍后再试')
+    }
   }
 
   function record(type: ActionType) {
@@ -801,22 +819,35 @@ export default function App() {
       time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
       createdAt: Date.now(),
     }
-    setData((previous) => ({ ...previous, actions: [...previous.actions, action] }))
-    setLastAction(action)
-    setActionBurst({ type, id: action.id })
-    window.setTimeout(() => {
-      setActionBurst((current) => current?.id === action.id ? null : current)
-    }, 720)
+    apiRequest<WaterAction>('/api/actions', {
+      method: 'POST',
+      body: JSON.stringify(action),
+    }).then((savedAction) => {
+      setData((previous) => ({ ...previous, actions: [...previous.actions, savedAction] }))
+      setLastAction(savedAction)
+      setActionBurst({ type, id: savedAction.id })
+      window.setTimeout(() => {
+        setActionBurst((current) => current?.id === savedAction.id ? null : current)
+      }, 720)
+      setRequestError('')
+    }).catch(() => {
+      setRequestError('这次记录没有保存成功，请稍后再试')
+    })
   }
 
-  function undoLastAction() {
+  async function undoLastAction() {
     if (!lastAction) return
-    setData((previous) => ({
-      ...previous,
-      actions: previous.actions.filter((item) => item.id !== lastAction.id),
-    }))
-    setLastAction(null)
-    setActionBurst(null)
+    try {
+      await apiRequest<void>(`/api/actions/${encodeURIComponent(lastAction.id)}`, { method: 'DELETE' })
+      setData((previous) => ({
+        ...previous,
+        actions: previous.actions.filter((item) => item.id !== lastAction.id),
+      }))
+      setLastAction(null)
+      setActionBurst(null)
+    } catch {
+      setRequestError('撤销没有保存成功，请稍后再试')
+    }
   }
 
   function resetDay() {
@@ -824,18 +855,24 @@ export default function App() {
     setShowResetConfirm(true)
   }
 
-  function confirmResetDay() {
+  async function confirmResetDay() {
     if (!selectedMember) return
     const memberId = selectedMember.id
-    setData((previous) => ({
-      ...previous,
-      actions: previous.actions.filter((item) => item.date !== selectedDate || item.memberId !== memberId),
-    }))
-    setLastAction(null)
-    setShowResetConfirm(false)
+    try {
+      await apiRequest<void>(`/api/actions?memberId=${encodeURIComponent(memberId)}&date=${encodeURIComponent(selectedDate)}`, { method: 'DELETE' })
+      setData((previous) => ({
+        ...previous,
+        actions: previous.actions.filter((item) => item.date !== selectedDate || item.memberId !== memberId),
+      }))
+      setLastAction(null)
+      setShowResetConfirm(false)
+    } catch {
+      setRequestError('重置没有保存成功，请稍后再试')
+    }
   }
 
-  if (!data.currentUser) return <LoginScreen onLogin={login} />
+  if (isLoading) return <AppLoading />
+  if (!data.currentUser) return <LoginScreen onLogin={login} serverError={requestError} />
   if (!selectedMember) return null
 
   const orderedActions = [...dayActions].sort((a, b) => b.createdAt - a.createdAt)
@@ -855,6 +892,7 @@ export default function App() {
       </header>
 
       <main className="dashboard">
+        {requestError && <div className="server-error server-error--dashboard" role="alert">{requestError}</div>}
         <section className="welcome-row">
           <div>
             <span className="eyebrow eyebrow--blue">DAILY HYDRATION</span>
