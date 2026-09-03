@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
-echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
+echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 type ActionType = 'fetch' | 'drink' | 'restroom'
 type Gender = 'female' | 'male' | 'secret'
@@ -192,7 +192,17 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
     chart.setOption({
       animationDuration: 500,
       animationEasing: 'cubicOut',
-      grid: { top: 25, right: 22, bottom: 32, left: 38, containLabel: true },
+      grid: { top: 43, right: 22, bottom: 32, left: 38, containLabel: true },
+      legend: {
+        top: 0,
+        right: 3,
+        selectedMode: 'multiple',
+        itemWidth: 9,
+        itemHeight: 9,
+        itemGap: 14,
+        icon: 'circle',
+        textStyle: { color: '#64777d', fontSize: 11 },
+      },
       tooltip: {
         trigger: 'axis',
         backgroundColor: 'rgba(255, 254, 250, .97)',
@@ -275,13 +285,8 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
           <span className="card-kicker"><span>⌁</span> DAILY RHYTHM</span>
           <h2>今天的水站节奏</h2>
         </div>
-        <div className="chart-legend" aria-label="图例">
-          <span><i className="chart-legend__dot chart-legend__dot--fetch" />接水</span>
-          <span><i className="chart-legend__dot chart-legend__dot--drink" />喝水</span>
-          <span><i className="chart-legend__dot chart-legend__dot--restroom" />上厕所</span>
-        </div>
       </div>
-      <p className="chart-subtitle">按小时看接水、喝水和上厕所集中在哪些时段</p>
+      <p className="chart-subtitle">按小时看接水、喝水和上厕所集中在哪些时段，点击图例可显示 / 隐藏曲线</p>
       <div className="chart-canvas" ref={chartRef} role="img" aria-label="当天接水、喝水和上厕所次数的小时折线图" />
       <div className="chart-footer">
         {peakHour >= 0 ? <span>今天最活跃的时段：<strong>{String(peakHour).padStart(2, '0')}:00 左右</strong></span> : <span>记录后会显示你的饮水高峰时段</span>}
