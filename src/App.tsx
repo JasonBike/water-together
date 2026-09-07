@@ -399,19 +399,28 @@ function DatePicker({ value, maxDate, onChange }: DatePickerProps) {
 }
 
 function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (profile: LoginProfile) => void; serverError?: string; members?: Member[] }) {
+  const [isRegistering, setIsRegistering] = useState(members.length === 0)
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState<Gender>('secret')
   const [cupCapacity, setCupCapacity] = useState<CupCapacity>(350)
   const [emoji, setEmoji] = useState(EMOJIS[0])
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   function selectAccount(member: Member) {
-    setSelectedAccountId(member.id)
-    setNickname(member.name)
-    setGender(member.gender)
-    setCupCapacity(member.cupCapacity)
-    setEmoji(member.emoji)
+    onLogin({
+      nickname: member.name,
+      gender: member.gender,
+      cupCapacity: member.cupCapacity,
+      emoji: member.emoji,
+    })
+  }
+
+  function startRegister() {
+    setIsRegistering(true)
+    setNickname('')
+    setGender('secret')
+    setCupCapacity(350)
+    setEmoji(EMOJIS[0])
     setError('')
   }
 
@@ -424,6 +433,10 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
     }
     if (name.length > 12) {
       setError('昵称短一点会更可爱哦（最多 12 个字）')
+      return
+    }
+    if (members.some((member) => member.name === name)) {
+      setError('这个昵称已经注册啦，直接点击上面的账号卡片登录吧')
       return
     }
     onLogin({ nickname: name, gender, cupCapacity, emoji })
@@ -465,18 +478,17 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
             <p>不需要密码，留下昵称，选好你的专属小设置就可以开始。</p>
           </div>
           <form className="login-form" onSubmit={submit}>
-            {members.length > 0 && (
+            {!isRegistering && members.length > 0 && (
               <div className="account-picker">
                 <div className="account-picker__heading">
                   <label>选择已有账号</label>
-                  <span>或者输入新昵称</span>
+                  <span>点击头像直接登录</span>
                 </div>
                 <div className="account-picker__list">
                   {members.map((member) => (
                     <button
                       type="button"
                       key={member.id}
-                      className={selectedAccountId === member.id ? 'is-picked' : ''}
                       onClick={() => selectAccount(member)}
                     >
                       <span style={{ background: member.color }}>{member.emoji}</span>
@@ -484,9 +496,12 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
                     </button>
                   ))}
                 </div>
+                <button type="button" className="register-button" onClick={startRegister}>注册新账号</button>
               </div>
             )}
-            <label htmlFor="nickname">你的昵称</label>
+            {isRegistering && <div className="register-mode-heading"><strong>注册一个新账号</strong><button type="button" onClick={() => setIsRegistering(false)}>返回账号选择</button></div>}
+            {isRegistering && <label htmlFor="nickname">你的昵称</label>}
+            {isRegistering && <>
             <div className={`nickname-field ${error ? 'nickname-field--error' : ''}`}>
               <span aria-hidden="true">☺</span>
               <input
@@ -494,7 +509,6 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
                 value={nickname}
                 onChange={(event) => {
                   setNickname(event.target.value)
-                  setSelectedAccountId(null)
                   setError('')
                 }}
                 placeholder="比如：小兔、阿布……"
@@ -565,6 +579,7 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
             <button className="primary-button" type="submit">
               开始记录 <span aria-hidden="true">→</span>
             </button>
+            </>}
           </form>
           {serverError && <p className="server-error" role="alert">{serverError}</p>}
           <p className="privacy-note"><span aria-hidden="true">⌁</span> 数据保存在小水站服务器里，换设备也能继续记录</p>
