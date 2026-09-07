@@ -42,7 +42,7 @@ type AppData = {
 }
 
 const SESSION_KEY = 'gulu-diary-session-v1'
-const EMOJIS = ['🐰', '🐻', '🐱', '🐶', '🦊', '🐼', '🐹', '🐣']
+const EMOJIS = ['🐰', '🐻', '🐱', '🐶', '🦊', '🐼', '🐹', '🐣', '🐧']
 const COLORS = ['#f8c8cc', '#b9dff0', '#f7d59b', '#cfdcb4', '#d9c9ef', '#f4bd9f']
 const CUP_OPTIONS: Array<{ value: CupCapacity; label: string; note: string }> = [
   { value: 250, label: '小杯', note: '250 ml' },
