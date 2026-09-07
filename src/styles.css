@@ -2405,6 +2405,12 @@ input:focus-visible {
   gap: 8px;
 }
 
+.note-heading__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .note-heading > p {
   margin: 0;
   color: #d09291;
@@ -2429,6 +2435,29 @@ input:focus-visible {
   border-color: #d59c99;
   background: #fff;
   transform: rotate(-2deg);
+}
+
+.note-generate-button {
+  padding: 4px 7px;
+  border: 1px dashed #d8c995;
+  border-radius: 7px;
+  color: #aa8b57;
+  background: rgba(255, 252, 229, .62);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+  transition: .18s ease;
+}
+
+.note-generate-button:hover:not(:disabled) {
+  border-color: #cdb36e;
+  background: #fffbea;
+  transform: rotate(2deg);
+}
+
+.note-generate-button:disabled {
+  cursor: wait;
+  opacity: .6;
 }
 
 .note-editor {

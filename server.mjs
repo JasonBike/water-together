@@ -10,6 +10,17 @@ const dataDir = join(rootDir, 'data')
 const databasePath = process.env.WATER_DB_PATH || join(dataDir, 'water-together.sqlite')
 const distDir = join(rootDir, 'dist')
 const port = Number(process.env.PORT || 8787)
+const noteModelEndpoint = 'http://127.0.0.1:8317/v1/chat/completions'
+const noteModel = 'gpt-5.6-terra'
+const noteDefaults = [
+  '水要慢慢喝，\n喜欢要一直在。',
+  '今天也要记得，\n给自己一杯温柔。',
+  '先喝一口水，\n再继续闪闪发光。',
+  '和喜欢的人一起，\n把日子过得水当当。',
+  '小口喝水，\n大口拥抱今天。',
+  '水杯在手，\n好运常有。',
+  '今天的你也很棒，\n喝水是给自己的奖励。',
+]
 
 mkdirSync(dirname(databasePath), { recursive: true })
 const db = new DatabaseSync(databasePath)
@@ -191,6 +202,43 @@ function noteView(date) {
   return { ...note, likes: Number(selectNoteLikesCount.get(date)?.likes || 0) }
 }
 
+function defaultNoteForDate(date) {
+  const dayNumber = Number(date.replaceAll('-', ''))
+  return noteDefaults[Math.abs(dayNumber) % noteDefaults.length]
+}
+
+async function generateNoteContent(date) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8_000)
+  try {
+    const response = await fetch(noteModelEndpoint, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: noteModel,
+        temperature: 0.9,
+        max_tokens: 80,
+        messages: [
+          { role: 'system', content: '你是情侣饮水小站的每日小纸条助手。只输出一句简短、可爱、温柔的中文话术，不超过30个汉字，不要引号，不要解释。' },
+          { role: 'user', content: `请为 ${date} 写一句提醒喝水、好好生活的小纸条。` },
+        ],
+      }),
+    })
+    if (!response.ok) throw new Error(`note model ${response.status}`)
+    const payload = await response.json()
+    const content = payload?.choices?.[0]?.message?.content
+    if (typeof content === 'string' && content.trim()) return content.trim().slice(0, 160)
+  } catch (error) {
+    console.warn('daily note generation fell back to default:', error.message)
+  } finally {
+    clearTimeout(timeout)
+  }
+  return defaultNoteForDate(date)
+}
+
 async function handleApi(request, response, url) {
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
@@ -275,6 +323,18 @@ async function handleApi(request, response, url) {
     const date = payload.date
     upsertNote.run(date, payload.content.trim(), Date.now())
     sendJson(response, 200, noteView(date))
+    return
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/notes/generate') {
+    const payload = await readBody(request)
+    if (!validDate(payload.date)) {
+      sendJson(response, 400, { error: 'invalid note date' })
+      return
+    }
+    const content = await generateNoteContent(payload.date)
+    upsertNote.run(payload.date, content, Date.now())
+    sendJson(response, 200, noteView(payload.date))
     return
   }
 

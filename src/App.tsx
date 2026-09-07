@@ -761,6 +761,7 @@ export default function App() {
   const [milestone, setMilestone] = useState<{ title: string; message: string; emoji: string } | null>(null)
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
+  const [isGeneratingNote, setIsGeneratingNote] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -839,7 +840,7 @@ export default function App() {
   const cupProgress = cupLevel(memberFetchTotal)
   const coupleFetchCount = data.actions.filter((item) => item.date === selectedDate && item.type === 'fetch').length
   const coupleDrinkCount = data.actions.filter((item) => item.date === selectedDate && item.type === 'drink').length
-  const coupleTarget = Math.max(1, data.members.length * 8)
+  const coupleTarget = 10
   const coupleProgress = Math.min(100, Math.round((coupleFetchCount / coupleTarget) * 100))
   const nudgeCount = selectedMember ? data.nudges.filter((nudge) => nudge.toMemberId === selectedMember.id).length : 0
   const currentNote = data.notes.find((note) => note.date === selectedDate)
@@ -848,6 +849,24 @@ export default function App() {
   const noteLiked = currentUserMember
     ? data.noteLikes.some((like) => like.date === selectedDate && like.memberId === currentUserMember.id)
     : false
+
+  useEffect(() => {
+    if (!data.currentUser || !isToday || currentNote || isGeneratingNote) return
+    let active = true
+    setIsGeneratingNote(true)
+    apiRequest<DailyNote>('/api/notes/generate', {
+      method: 'POST',
+      body: JSON.stringify({ date: selectedDate }),
+    }).then((generatedNote) => {
+      if (!active) return
+      setData((previous) => ({ ...previous, notes: [...previous.notes, generatedNote] }))
+    }).catch(() => {
+      if (active) setRequestError('小纸条暂时没有生成成功，请稍后重试')
+    }).finally(() => {
+      if (active) setIsGeneratingNote(false)
+    })
+    return () => { active = false }
+  }, [currentNote, data.currentUser, isGeneratingNote, isToday, selectedDate])
 
   async function login(profile: LoginProfile) {
     try {
@@ -1001,6 +1020,29 @@ export default function App() {
       setRequestError('')
     } catch {
       setRequestError('小纸条暂时没有保存成功，请稍后再试')
+    }
+  }
+
+  async function generateNote() {
+    if (isGeneratingNote) return
+    setIsGeneratingNote(true)
+    try {
+      const generatedNote = await apiRequest<DailyNote>('/api/notes/generate', {
+        method: 'POST',
+        body: JSON.stringify({ date: selectedDate }),
+      })
+      setData((previous) => ({
+        ...previous,
+        notes: previous.notes.some((note) => note.date === selectedDate)
+          ? previous.notes.map((note) => note.date === selectedDate ? generatedNote : note)
+          : [...previous.notes, generatedNote],
+      }))
+      setIsEditingNote(false)
+      setRequestError('')
+    } catch {
+      setRequestError('小纸条暂时没有生成成功，请稍后重试')
+    } finally {
+      setIsGeneratingNote(false)
     }
   }
 
@@ -1247,7 +1289,10 @@ export default function App() {
                 <span className="note-doodle note-doodle--spark">✦</span>
                 <div className="note-heading">
                   <p>{isToday ? '今日小纸条' : `${formatMonthDay(selectedDate)} 小纸条`}</p>
-                  <button type="button" className="note-edit-button" onClick={startNoteEdit}>✎ 编辑</button>
+                  <div className="note-heading__actions">
+                    <button type="button" className="note-generate-button" onClick={generateNote} disabled={isGeneratingNote}>{isGeneratingNote ? '生成中…' : '✦ 换一句'}</button>
+                    <button type="button" className="note-edit-button" onClick={startNoteEdit}>✎ 编辑</button>
+                  </div>
                 </div>
                 {isEditingNote ? (
                   <div className="note-editor">
