@@ -1026,7 +1026,7 @@ export default function App() {
               <div className="hydrate-overview">
                 <div className="progress-wrap">
                   <div
-                    className="progress-ring"
+                    className={`progress-ring ${actionBurst ? 'progress-ring--pulse' : ''}`}
                     style={{ '--progress': `${progress * 3.6}deg` } as React.CSSProperties}
                   >
                     <div className="progress-ring__inside">

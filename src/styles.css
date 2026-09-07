@@ -422,10 +422,11 @@ input:focus-visible {
   display: flex;
   gap: 7px;
   overflow-x: auto;
-  padding: 4px 2px 6px;
+  padding: 6px 3px 8px;
 }
 
 .account-picker__list button {
+  position: relative;
   display: flex;
   min-width: 74px;
   height: 52px;
@@ -440,14 +441,38 @@ input:focus-visible {
   font-size: 11px;
   font-weight: 750;
   transition: .18s ease;
+  animation: account-card-in .36s ease both;
 }
 
+.account-picker__list button:nth-child(2) { animation-delay: .04s; }
+.account-picker__list button:nth-child(3) { animation-delay: .08s; }
+.account-picker__list button:nth-child(4) { animation-delay: .12s; }
+.account-picker__list button:nth-child(5) { animation-delay: .16s; }
+.account-picker__list button:nth-child(6) { animation-delay: .20s; }
+.account-picker__list button:nth-child(7) { animation-delay: .24s; }
+.account-picker__list button:nth-child(8) { animation-delay: .28s; }
+
 .account-picker__list button:hover {
-  position: relative;
   z-index: 1;
   border-color: #b6dce4;
   background: #f6fcfc;
   box-shadow: 0 5px 12px rgba(83, 157, 177, .14);
+  transform: translateY(-2px) rotate(-.7deg);
+}
+
+.account-picker__list button:active {
+  transform: translateY(0) scale(.96) rotate(0);
+}
+
+@keyframes account-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .account-picker__list button.is-picked {
@@ -739,11 +764,46 @@ input:focus-visible {
 }
 
 .app-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 100vh;
   background:
     radial-gradient(circle at 6% 36%, rgba(225, 241, 246, .7), transparent 22%),
     radial-gradient(circle at 96% 92%, rgba(250, 225, 219, .55), transparent 23%),
     #fbf8f3;
+}
+
+.app-shell::before,
+.app-shell::after {
+  position: fixed;
+  z-index: -1;
+  width: 240px;
+  height: 240px;
+  border: 1px solid rgba(143, 205, 220, .16);
+  border-radius: 48% 52% 60% 40%;
+  pointer-events: none;
+  content: "";
+}
+
+.app-shell::before {
+  top: 19%;
+  left: -150px;
+  background: radial-gradient(circle at 70% 30%, rgba(188, 231, 239, .28), transparent 63%);
+  animation: ambient-drift 15s ease-in-out infinite;
+}
+
+.app-shell::after {
+  right: -165px;
+  bottom: 7%;
+  border-color: rgba(238, 177, 181, .14);
+  background: radial-gradient(circle at 30% 35%, rgba(252, 216, 210, .3), transparent 63%);
+  animation: ambient-drift 18s ease-in-out -5s infinite reverse;
+}
+
+@keyframes ambient-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-8deg); }
+  50% { transform: translate3d(20px, -17px, 0) rotate(10deg); }
 }
 
 .topbar {
@@ -758,6 +818,16 @@ input:focus-visible {
   border-bottom: 1px solid rgba(230, 224, 215, .85);
   background: rgba(255, 253, 249, .86);
   backdrop-filter: blur(16px);
+}
+
+.brand--compact:hover .brand__mark {
+  animation: logo-sip .62s ease-in-out;
+}
+
+@keyframes logo-sip {
+  0%, 100% { transform: rotate(-4deg) scale(1); }
+  35% { transform: rotate(7deg) scale(1.08); }
+  65% { transform: rotate(-8deg) scale(.96); }
 }
 
 .topbar__right {
@@ -779,6 +849,12 @@ input:focus-visible {
   color: #8fc5a3;
   font-size: 7px;
   box-shadow: 0 0 0 4px rgba(143, 197, 163, .15);
+  animation: online-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes online-breathe {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(143, 197, 163, .12); }
+  50% { box-shadow: 0 0 0 6px rgba(143, 197, 163, .03); }
 }
 
 .profile-chip {
@@ -816,6 +892,11 @@ input:focus-visible {
   box-shadow: 0 2px 8px rgba(85, 72, 62, .13);
   font-size: 17px;
   place-items: center;
+  transition: transform .2s ease;
+}
+
+.profile-chip:hover .profile-chip__avatar {
+  transform: rotate(-8deg) scale(1.08);
 }
 
 .logout-button {
@@ -884,6 +965,12 @@ input:focus-visible {
   border-radius: 18px;
   background: rgba(255,255,252,.85);
   box-shadow: 0 8px 22px rgba(82, 74, 66, .05);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.date-switcher:hover {
+  box-shadow: 0 11px 26px rgba(82, 132, 145, .11);
+  transform: translateY(-2px);
 }
 
 .date-switcher > button {
@@ -972,6 +1059,12 @@ input:focus-visible {
   background: rgba(255, 254, 250, .98);
   box-shadow: 0 18px 42px rgba(75, 69, 62, .17);
   transform: translateX(-50%);
+  animation: popover-in .2s ease-out;
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translate(-50%, -5px) scale(.97); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
 .date-popover::before {
@@ -1167,6 +1260,13 @@ input:focus-visible {
   color: #505d64;
   background: #f0fafb;
   box-shadow: 0 8px 20px rgba(80, 161, 185, .16);
+  animation: member-select .35s ease-out;
+}
+
+@keyframes member-select {
+  0% { transform: scale(.97); }
+  70% { transform: scale(1.025); }
+  100% { transform: scale(1); }
 }
 
 .member-tab:hover {
@@ -1192,6 +1292,11 @@ input:focus-visible {
   background: var(--member-color);
   font-size: 17px;
   place-items: center;
+  transition: transform .22s ease;
+}
+
+.member-tab:hover .member-tab__avatar {
+  transform: rotate(-7deg) scale(1.08);
 }
 
 .add-member-button,
@@ -1205,6 +1310,16 @@ input:focus-visible {
   cursor: pointer;
   font-size: 11px;
   font-weight: 750;
+}
+
+.add-member-button svg,
+.team-add svg {
+  transition: transform .2s ease;
+}
+
+.add-member-button:hover svg,
+.team-add:hover svg {
+  transform: rotate(90deg) scale(1.1);
 }
 
 .dashboard-grid {
@@ -1253,6 +1368,12 @@ input:focus-visible {
   border-radius: 25px;
   background: rgba(255, 254, 250, .93);
   box-shadow: 0 13px 35px rgba(89, 78, 65, .055);
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.chart-card:hover {
+  box-shadow: 0 17px 38px rgba(89, 78, 65, .08);
+  transform: translateY(-1px);
 }
 
 .chart-legend {
@@ -1369,6 +1490,12 @@ input:focus-visible {
   border-radius: 16px;
   background: linear-gradient(145deg, #eef9fa, #e4f3f5);
   box-shadow: 0 6px 14px rgba(89, 161, 178, .09);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.capacity-display:hover {
+  box-shadow: 0 9px 19px rgba(89, 161, 178, .15);
+  transform: translateY(-2px);
 }
 
 .capacity-display__cup {
@@ -1379,6 +1506,11 @@ input:focus-visible {
   background: rgba(255,255,255,.7);
   font-size: 25px;
   place-items: center;
+  transition: transform .2s ease;
+}
+
+.capacity-display:hover .capacity-display__cup {
+  transform: rotate(-7deg) translateY(-2px);
 }
 
 .capacity-display__copy {
@@ -1456,6 +1588,16 @@ input:focus-visible {
   background: conic-gradient(#83c5dc 0 var(--progress), #edf1ef var(--progress) 360deg);
   place-items: center;
   transform: rotate(-20deg);
+}
+
+.progress-ring--pulse {
+  animation: ring-breathe .7s ease-out;
+}
+
+@keyframes ring-breathe {
+  0%, 100% { transform: rotate(-20deg) scale(1); }
+  38% { transform: rotate(-20deg) scale(1.045); }
+  70% { transform: rotate(-20deg) scale(.985); }
 }
 
 .progress-ring::before {
@@ -1545,6 +1687,29 @@ input:focus-visible {
   cursor: pointer;
   text-align: left;
   transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.water-action::before {
+  position: absolute;
+  top: 50%;
+  left: 42%;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, .72);
+  border-radius: 50%;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(.2);
+}
+
+.water-action--burst::before {
+  animation: button-ripple .62s ease-out;
+}
+
+@keyframes button-ripple {
+  0% { opacity: .7; transform: translate(-50%, -50%) scale(.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(9); }
 }
 
 .water-action:hover {
@@ -2096,6 +2261,14 @@ input:focus-visible {
   align-items: center;
   gap: 5px;
   border-bottom: 1px dashed #ece8e1;
+  transition: background .18s ease, padding .18s ease;
+}
+
+.summary-row:hover {
+  padding-right: 6px;
+  padding-left: 6px;
+  border-radius: 9px;
+  background: #f8fbfa;
 }
 
 .summary-row:last-child {
@@ -2290,6 +2463,15 @@ input:focus-visible {
   background: rgba(54, 64, 68, .32);
   backdrop-filter: blur(8px);
   place-items: center;
+}
+
+.modal-backdrop > * {
+  animation: modal-pop .24s ease-out;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .member-modal {
