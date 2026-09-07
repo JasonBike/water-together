@@ -45,7 +45,9 @@ db.exec(`
     type TEXT NOT NULL CHECK (type IN ('fetch', 'drink', 'restroom')),
     date TEXT NOT NULL,
     time TEXT NOT NULL,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    drink_kind TEXT,
+    volume INTEGER
   );
 
   CREATE INDEX IF NOT EXISTS actions_member_date_idx ON actions(member_id, date);
@@ -78,14 +80,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS note_likes_member_idx ON note_likes(member_id, date);
 `)
 
+for (const column of ['drink_kind TEXT', 'volume INTEGER']) {
+  try {
+    db.exec(`ALTER TABLE actions ADD COLUMN ${column}`)
+  } catch {
+    // Existing databases already have this column.
+  }
+}
+
 const memberColumns = 'id, name, emoji, color, gender, cup_capacity AS cupCapacity'
-const actionColumns = 'id, member_id AS memberId, type, date, time, created_at AS createdAt'
+const actionColumns = 'id, member_id AS memberId, type, date, time, created_at AS createdAt, drink_kind AS drinkKind, volume'
 const nudgeColumns = 'id, from_member_id AS fromMemberId, to_member_id AS toMemberId, date, time, created_at AS createdAt'
 const selectMembers = db.prepare(`SELECT ${memberColumns} FROM members ORDER BY created_at ASC`)
 const selectActions = db.prepare(`SELECT ${actionColumns} FROM actions ORDER BY created_at ASC`)
 const selectNudges = db.prepare(`SELECT ${nudgeColumns} FROM nudges ORDER BY created_at ASC`)
 const selectMember = db.prepare(`SELECT ${memberColumns} FROM members WHERE id = ?`)
 const selectMemberByName = db.prepare(`SELECT ${memberColumns} FROM members WHERE name = ?`)
+const deleteMember = db.prepare('DELETE FROM members WHERE id = ?')
 const upsertMember = db.prepare(`
   INSERT INTO members (id, name, emoji, color, gender, cup_capacity, created_at)
   VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -96,8 +107,8 @@ const upsertMember = db.prepare(`
     cup_capacity = excluded.cup_capacity
 `)
 const insertAction = db.prepare(`
-  INSERT INTO actions (id, member_id, type, date, time, created_at)
-  VALUES (?, ?, ?, ?, ?, ?)
+  INSERT INTO actions (id, member_id, type, date, time, created_at, drink_kind, volume)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `)
 const selectAction = db.prepare(`SELECT ${actionColumns} FROM actions WHERE id = ?`)
 const deleteAction = db.prepare('DELETE FROM actions WHERE id = ?')
@@ -185,6 +196,9 @@ function validMemberPayload(payload) {
 }
 
 function validActionPayload(payload) {
+  const validDrinkKinds = ['water', 'milkTea', 'coffee', 'beverage']
+  const hasValidDrinkDetails = payload.type !== 'drink'
+    || (validDrinkKinds.includes(payload.drinkKind) && Number.isInteger(Number(payload.volume)) && Number(payload.volume) > 0 && Number(payload.volume) <= 2000)
   return payload
     && typeof payload.id === 'string'
     && typeof payload.memberId === 'string'
@@ -192,6 +206,7 @@ function validActionPayload(payload) {
     && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)
     && typeof payload.time === 'string'
     && typeof payload.createdAt === 'number'
+    && hasValidDrinkDetails
 }
 
 function validDate(value) {
@@ -284,13 +299,20 @@ async function handleApi(request, response, url) {
     return
   }
 
+  const memberMatch = url.pathname.match(/^\/api\/members\/([^/]+)$/)
+  if (request.method === 'DELETE' && memberMatch) {
+    deleteMember.run(decodeURIComponent(memberMatch[1]))
+    sendEmpty(response)
+    return
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/actions') {
     const payload = await readBody(request)
     if (!validActionPayload(payload) || !memberExists.get(payload.memberId)) {
       sendJson(response, 400, { error: 'invalid action payload' })
       return
     }
-    insertAction.run(payload.id, payload.memberId, payload.type, payload.date, payload.time, payload.createdAt)
+    insertAction.run(payload.id, payload.memberId, payload.type, payload.date, payload.time, payload.createdAt, payload.drinkKind || null, payload.volume ? Number(payload.volume) : null)
     sendJson(response, 201, selectAction.get(payload.id))
     return
   }

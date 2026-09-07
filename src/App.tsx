@@ -7,6 +7,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
 type ActionType = 'fetch' | 'drink' | 'restroom'
+type DrinkKind = 'water' | 'milkTea' | 'coffee' | 'beverage'
 type Gender = 'female' | 'male' | 'secret'
 type CupCapacity = number
 
@@ -33,6 +34,8 @@ type WaterAction = {
   date: string
   time: string
   createdAt: number
+  drinkKind?: DrinkKind
+  volume?: number
 }
 
 type Nudge = {
@@ -74,15 +77,18 @@ const CUP_OPTIONS: Array<{ value: CupCapacity; label: string; note: string }> = 
   { value: 500, label: '大杯', note: '500 ml' },
   { value: 750, label: '超大杯', note: '750 ml' },
 ]
+const DRINK_OPTIONS: Array<{ value: DrinkKind; label: string; emoji: string; capacities: number[] }> = [
+  { value: 'water', label: '水', emoji: '💧', capacities: [250, 350, 500, 750] },
+  { value: 'milkTea', label: '奶茶', emoji: '🧋', capacities: [350, 500, 700] },
+  { value: 'coffee', label: '咖啡', emoji: '☕', capacities: [240, 350, 500] },
+  { value: 'beverage', label: '饮料', emoji: '🥤', capacities: [330, 500, 600] },
+]
 const GENDER_OPTIONS: Array<{ value: Gender; label: string; emoji: string }> = [
   { value: 'female', label: '女生', emoji: '♀' },
   { value: 'male', label: '男生', emoji: '♂' },
   { value: 'secret', label: '保密', emoji: '♡' },
 ]
 const DEFAULT_NOTE = '水要慢慢喝，\n喜欢要一直在。'
-const MIN_CUP_CAPACITY = 100
-const MAX_CUP_CAPACITY = 2000
-const CUP_STEP = 50
 
 const emptyData: AppData = {
   currentUser: null,
@@ -159,10 +165,6 @@ function cupLevel(fetchTotal: number) {
   return { level: 1, name: '新手水滴', emoji: '💧', progress: (fetchTotal / 10) * 100 }
 }
 
-function normalizeCupCapacity(value: number): CupCapacity {
-  if (!Number.isFinite(value)) return 350
-  return Math.min(MAX_CUP_CAPACITY, Math.max(MIN_CUP_CAPACITY, Math.round(value / CUP_STEP) * CUP_STEP))
-}
 
 function greeting() {
   const hour = new Date().getHours()
@@ -444,13 +446,14 @@ function DatePicker({ value, maxDate, onChange }: DatePickerProps) {
   )
 }
 
-function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (profile: LoginProfile) => void; serverError?: string; members?: Member[] }) {
+function LoginScreen({ onLogin, onDeleteAccount, serverError = '', members = [] }: { onLogin: (profile: LoginProfile) => void; onDeleteAccount: (member: Member) => Promise<void>; serverError?: string; members?: Member[] }) {
   const [isRegistering, setIsRegistering] = useState(members.length === 0)
   const [nickname, setNickname] = useState('')
   const [gender, setGender] = useState<Gender>('secret')
   const [cupCapacity, setCupCapacity] = useState<CupCapacity>(350)
   const [emoji, setEmoji] = useState(EMOJIS[0])
   const [error, setError] = useState('')
+  const [accountToDelete, setAccountToDelete] = useState<Member | null>(null)
 
   function selectAccount(member: Member) {
     onLogin({
@@ -538,6 +541,7 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
                     >
                       <span style={{ background: member.color }}>{member.emoji}</span>
                       <strong>{member.name}</strong>
+                      <span className="account-delete-button" role="button" onClick={(event) => { event.stopPropagation(); setAccountToDelete(member) }} aria-label={`删除账号 ${member.name}`}>×</span>
                     </button>
                   ))}
                 </div>
@@ -581,30 +585,6 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
                     </button>
                   ))}
                 </div>
-                <div className="capacity-slider-row">
-                  <input
-                    type="range"
-                    min={MIN_CUP_CAPACITY}
-                    max={MAX_CUP_CAPACITY}
-                    step={CUP_STEP}
-                    value={cupCapacity}
-                    onChange={(event) => setCupCapacity(normalizeCupCapacity(Number(event.target.value)))}
-                    aria-label="调整水杯容量"
-                  />
-                  <label className="capacity-number-field">
-                    <input
-                      type="number"
-                      min={MIN_CUP_CAPACITY}
-                      max={MAX_CUP_CAPACITY}
-                      step={CUP_STEP}
-                      value={cupCapacity}
-                      onChange={(event) => setCupCapacity(normalizeCupCapacity(Number(event.target.value)))}
-                      aria-label="输入水杯容量"
-                    />
-                    <span>ml</span>
-                  </label>
-                </div>
-                <div className="capacity-range-note">可调范围 {MIN_CUP_CAPACITY}–{MAX_CUP_CAPACITY} ml</div>
               </div>
               <div className="login-setting-block login-setting-row">
                 <div className="login-setting-heading">
@@ -653,6 +633,7 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
           <p className="privacy-note"><span aria-hidden="true">⌁</span> 数据保存在小水站服务器里，换设备也能继续记录</p>
         </div>
       </section>
+      {accountToDelete && <DeleteAccountModal member={accountToDelete} onClose={() => setAccountToDelete(null)} onConfirm={async () => { await onDeleteAccount(accountToDelete); setAccountToDelete(null) }} />}
     </main>
   )
 }
@@ -770,6 +751,120 @@ function ResetConfirmModal({ dateLabel, actionCount, onClose, onConfirm }: Reset
   )
 }
 
+type CupCapacityModalProps = {
+  capacity: CupCapacity
+  onClose: () => void
+  onSave: (capacity: CupCapacity) => Promise<void>
+}
+
+function CupCapacityModal({ capacity, onClose, onSave }: CupCapacityModalProps) {
+  const [draft, setDraft] = useState(capacity)
+  const [saving, setSaving] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    await onSave(draft)
+    setSaving(false)
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="member-modal capacity-modal" role="dialog" aria-modal="true" aria-labelledby="capacity-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="关闭">×</button>
+        <span className="modal-drop">🥛</span>
+        <h2 id="capacity-modal-title">选择我的水杯</h2>
+        <p>选一个最接近的容量，记录会更轻松。</p>
+        <form onSubmit={submit}>
+          <div className="capacity-picker capacity-picker--modal">
+            {CUP_OPTIONS.map((option) => (
+              <button type="button" key={option.value} className={draft === option.value ? 'is-picked' : ''} onClick={() => setDraft(option.value)}>
+                <strong>{option.label}</strong>
+                <small>{option.note}</small>
+              </button>
+            ))}
+          </div>
+          <button className="primary-button" type="submit" disabled={saving}>{saving ? '保存中…' : `使用 ${draft} ml`}</button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+type DrinkPickerModalProps = {
+  cupCapacity: CupCapacity
+  onClose: () => void
+  onConfirm: (kind: DrinkKind, volume: number) => void
+}
+
+function DrinkPickerModal({ cupCapacity, onClose, onConfirm }: DrinkPickerModalProps) {
+  const [kind, setKind] = useState<DrinkKind>('water')
+  const selectedDrink = DRINK_OPTIONS.find((option) => option.value === kind) ?? DRINK_OPTIONS[0]
+  const defaultCapacity = selectedDrink.value === 'water' && selectedDrink.capacities.includes(cupCapacity)
+    ? cupCapacity
+    : selectedDrink.capacities[Math.min(1, selectedDrink.capacities.length - 1)]
+  const [volume, setVolume] = useState(defaultCapacity)
+
+  function selectKind(nextKind: DrinkKind) {
+    setKind(nextKind)
+    const next = DRINK_OPTIONS.find((option) => option.value === nextKind) ?? DRINK_OPTIONS[0]
+    setVolume(next.value === 'water' && next.capacities.includes(cupCapacity)
+      ? cupCapacity
+      : next.capacities[Math.min(1, next.capacities.length - 1)])
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="member-modal drink-modal" role="dialog" aria-modal="true" aria-labelledby="drink-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="关闭">×</button>
+        <span className="modal-drop drink-modal__drop">{selectedDrink.emoji}</span>
+        <h2 id="drink-modal-title">这次喝点什么？</h2>
+        <p>选好类型和容量，今天的每一口都有记录。</p>
+        <div className="drink-kind-picker">
+          {DRINK_OPTIONS.map((option) => (
+            <button type="button" key={option.value} className={kind === option.value ? 'is-picked' : ''} onClick={() => selectKind(option.value)}>
+              <span>{option.emoji}</span><strong>{option.label}</strong>
+            </button>
+          ))}
+        </div>
+        <div className="drink-volume-picker">
+          <label>容量</label>
+          <div>
+            {selectedDrink.capacities.map((option) => (
+              <button type="button" key={option} className={volume === option ? 'is-picked' : ''} onClick={() => setVolume(option)}>{option} ml</button>
+            ))}
+          </div>
+        </div>
+        <button className="primary-button" type="button" onClick={() => onConfirm(kind, volume)}>记一杯 · {volume} ml</button>
+      </div>
+    </div>
+  )
+}
+
+type DeleteAccountModalProps = {
+  member: Member
+  onClose: () => void
+  onConfirm: () => void
+}
+
+function DeleteAccountModal({ member, onClose, onConfirm }: DeleteAccountModalProps) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="member-modal delete-account-modal" role="dialog" aria-modal="true" aria-labelledby="delete-account-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="modal-close" onClick={onClose} aria-label="关闭">×</button>
+        <span className="modal-drop delete-account-modal__drop">{member.emoji}</span>
+        <h2 id="delete-account-title">要删除「{member.name}」吗？</h2>
+        <p>这个账号的全部记录都会一起消失，不能恢复。</p>
+        <div className="delete-account-modal__scope"><span>⌁</span> 接水、喝水、上厕所、提醒和点赞关系都会删除</div>
+        <div className="delete-account-modal__actions">
+          <button className="delete-account-modal__cancel" onClick={onClose}>先留着</button>
+          <button className="delete-account-modal__confirm" onClick={onConfirm}>确认删除</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppLoading() {
   return (
     <main className="app-loading">
@@ -795,7 +890,7 @@ export default function App() {
   const [noteDraft, setNoteDraft] = useState('')
   const [isGeneratingNote, setIsGeneratingNote] = useState(false)
   const [showCapacityEditor, setShowCapacityEditor] = useState(false)
-  const [capacityDraft, setCapacityDraft] = useState<CupCapacity>(350)
+  const [showDrinkPicker, setShowDrinkPicker] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -857,12 +952,13 @@ export default function App() {
       const fetch = actions.filter((item) => item.type === 'fetch').length
       const drink = actions.filter((item) => item.type === 'drink').length
       const restroom = actions.filter((item) => item.type === 'restroom').length
+      const drinkVolume = actions.reduce((total, item) => total + (item.type === 'drink' ? item.volume || selectedMember.cupCapacity : 0), 0)
       return {
         date,
         fetch,
         drink,
         restroom,
-        volume: fetch * selectedMember.cupCapacity,
+        volume: fetch * selectedMember.cupCapacity + drinkVolume,
       }
     })
   }, [data.actions, selectedDate, selectedMember])
@@ -932,6 +1028,23 @@ export default function App() {
     }
   }
 
+  async function deleteAccount(member: Member) {
+    try {
+      await apiRequest<void>(`/api/members/${encodeURIComponent(member.id)}`, { method: 'DELETE' })
+      setData((previous) => ({
+        ...previous,
+        members: previous.members.filter((item) => item.id !== member.id),
+        actions: previous.actions.filter((item) => item.memberId !== member.id),
+        nudges: previous.nudges.filter((nudge) => nudge.fromMemberId !== member.id && nudge.toMemberId !== member.id),
+        noteLikes: previous.noteLikes.filter((like) => like.memberId !== member.id),
+      }))
+      setRequestError('')
+    } catch {
+      setRequestError('账号暂时没有删除成功，请稍后再试')
+      throw new Error('delete account failed')
+    }
+  }
+
   function logout() {
     setData((previous) => ({ ...previous, currentUser: null }))
     setSelectedMemberId(null)
@@ -965,7 +1078,7 @@ export default function App() {
     }
   }
 
-  function record(type: ActionType) {
+  function record(type: ActionType, drinkKind?: DrinkKind, volume?: number) {
     if (!selectedMember || !canRecord) return
     const now = new Date()
     const action: WaterAction = {
@@ -975,6 +1088,7 @@ export default function App() {
       date: selectedDate,
       time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
       createdAt: Date.now(),
+      ...(type === 'drink' && drinkKind ? { drinkKind, volume } : {}),
     }
     apiRequest<WaterAction>('/api/actions', {
       method: 'POST',
@@ -1004,6 +1118,11 @@ export default function App() {
     }).catch(() => {
       setRequestError('这次记录没有保存成功，请稍后再试')
     })
+  }
+
+  function recordDrink(kind: DrinkKind, volume: number) {
+    setShowDrinkPicker(false)
+    record('drink', kind, volume)
   }
 
   async function sendNudge() {
@@ -1102,20 +1221,14 @@ export default function App() {
     }
   }
 
-  function openCapacityEditor() {
-    if (!canRecord || !currentUserMember) return
-    setCapacityDraft(currentUserMember.cupCapacity)
-    setShowCapacityEditor(true)
-  }
-
-  async function saveCapacity() {
+  async function saveCapacity(nextCapacity: CupCapacity) {
     if (!canRecord || !currentUserMember) return
     try {
       const savedMember = await apiRequest<Member>('/api/members', {
         method: 'POST',
         body: JSON.stringify({
           ...currentUserMember,
-          cupCapacity: normalizeCupCapacity(capacityDraft),
+          cupCapacity: nextCapacity,
           createdAt: Date.now(),
         }),
       })
@@ -1164,7 +1277,7 @@ export default function App() {
   }
 
   if (isLoading) return <AppLoading />
-  if (!data.currentUser) return <LoginScreen onLogin={login} serverError={requestError} members={data.members} />
+  if (!data.currentUser) return <LoginScreen onLogin={login} onDeleteAccount={deleteAccount} serverError={requestError} members={data.members} />
   if (!selectedMember) return null
 
   return (
@@ -1242,14 +1355,20 @@ export default function App() {
                   <h2>今天接了几杯水？</h2>
                 </div>
                 <div className="hydrate-card__tools">
-                  <div className="capacity-display" aria-label={`每杯容量 ${selectedMember.cupCapacity} 毫升`}>
+                  <div
+                    className={`capacity-display ${canRecord ? 'capacity-display--interactive' : ''}`}
+                    aria-label={`每杯容量 ${selectedMember.cupCapacity} 毫升`}
+                    role={canRecord ? 'button' : undefined}
+                    tabIndex={canRecord ? 0 : undefined}
+                    onClick={canRecord ? () => setShowCapacityEditor(true) : undefined}
+                    onKeyDown={canRecord ? (event) => { if (event.key === 'Enter' || event.key === ' ') setShowCapacityEditor(true) } : undefined}
+                  >
                     <span className="capacity-display__cup" aria-hidden="true">🥛</span>
                     <span className="capacity-display__copy">
                       <strong>{selectedMember.cupCapacity}<em> ml</em></strong>
                       <small>接水目标 8 次</small>
                     </span>
                   </div>
-                  {canRecord && <button type="button" className="capacity-edit-button" onClick={openCapacityEditor}>调整</button>}
                   <button
                     className="reset-button reset-button--card"
                     onClick={resetDay}
@@ -1263,36 +1382,6 @@ export default function App() {
                   {canRecord && nudgeCount > 0 && <span className="nudge-count">收到 {nudgeCount} 次提醒</span>}
                 </div>
                 </div>
-                {showCapacityEditor && canRecord && (
-                  <div className="capacity-editor">
-                    <div className="capacity-editor__heading"><strong>调整我的水杯</strong><span>{capacityDraft} ml / 杯</span></div>
-                    <div className="capacity-slider-row">
-                      <input
-                        type="range"
-                        min={MIN_CUP_CAPACITY}
-                        max={MAX_CUP_CAPACITY}
-                        step={CUP_STEP}
-                        value={capacityDraft}
-                        onChange={(event) => setCapacityDraft(normalizeCupCapacity(Number(event.target.value)))}
-                        aria-label="调整当前水杯容量"
-                      />
-                      <label className="capacity-number-field">
-                        <input
-                          type="number"
-                          min={MIN_CUP_CAPACITY}
-                          max={MAX_CUP_CAPACITY}
-                          step={CUP_STEP}
-                          value={capacityDraft}
-                          onChange={(event) => setCapacityDraft(normalizeCupCapacity(Number(event.target.value)))}
-                          aria-label="输入当前水杯容量"
-                        />
-                        <span>ml</span>
-                      </label>
-                    </div>
-                    <div className="capacity-editor__actions"><button type="button" onClick={() => setShowCapacityEditor(false)}>取消</button><button type="button" onClick={saveCapacity}>保存容量</button></div>
-                  </div>
-                )}
-
               <div className="hydrate-overview">
                 <div className="progress-wrap">
                   <div
@@ -1317,7 +1406,7 @@ export default function App() {
                       <span className="water-action__count">{fetchCount}<small> 次</small></span>
                       {actionBurst?.type === 'fetch' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>✦</i><i>💧</i><i>·</i></span>}
                     </button>
-                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => record('drink')} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => setShowDrinkPicker(true)} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
                       <span className="water-action__icon"><span>＋</span>🥛</span>
                       <span className="water-action__copy">
                         <strong>喝水啦</strong>
@@ -1514,6 +1603,20 @@ export default function App() {
       )}
 
       {showAddMember && <AddMemberModal onClose={() => setShowAddMember(false)} onAdd={addMember} />}
+      {showCapacityEditor && canRecord && (
+        <CupCapacityModal
+          capacity={currentUserMember.cupCapacity}
+          onClose={() => setShowCapacityEditor(false)}
+          onSave={saveCapacity}
+        />
+      )}
+      {showDrinkPicker && canRecord && (
+        <DrinkPickerModal
+          cupCapacity={currentUserMember.cupCapacity}
+          onClose={() => setShowDrinkPicker(false)}
+          onConfirm={recordDrink}
+        />
+      )}
       {showResetConfirm && (
         <ResetConfirmModal
           dateLabel={isToday ? '今天' : formatDate(selectedDate)}
