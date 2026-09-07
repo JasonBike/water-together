@@ -422,7 +422,7 @@ input:focus-visible {
   display: flex;
   gap: 7px;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 4px 2px 6px;
 }
 
 .account-picker__list button {
@@ -443,9 +443,11 @@ input:focus-visible {
 }
 
 .account-picker__list button:hover {
+  position: relative;
+  z-index: 1;
   border-color: #b6dce4;
   background: #f6fcfc;
-  transform: translateY(-1px);
+  box-shadow: 0 5px 12px rgba(83, 157, 177, .14);
 }
 
 .account-picker__list button.is-picked {
