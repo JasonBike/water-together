@@ -281,7 +281,7 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
       },
       series: [
         {
-          name: '接水',
+          name: '准备饮品',
           type: 'line',
           smooth: true,
           showSymbol: true,
@@ -337,10 +337,10 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
           <h2>今天的水站节奏</h2>
         </div>
       </div>
-      <div className="chart-canvas" ref={chartRef} role="img" aria-label="当天接水、喝水和上厕所次数的小时折线图" />
+      <div className="chart-canvas" ref={chartRef} role="img" aria-label="当天准备饮品、喝水和上厕所次数的小时折线图" />
       <div className="chart-footer">
         {peakHour >= 0 ? <span>今天最活跃的时段：<strong>{String(peakHour).padStart(2, '0')}:00 左右</strong></span> : <span>记录后会显示你的饮水高峰时段</span>}
-        <span>接水 {fetchByHour.reduce((sum, count) => sum + count, 0)} 次 · 喝水 {drinkByHour.reduce((sum, count) => sum + count, 0)} 次 · 上厕所 {restroomByHour.reduce((sum, count) => sum + count, 0)} 次</span>
+        <span>准备饮品 {fetchByHour.reduce((sum, count) => sum + count, 0)} 次 · 喝水 {drinkByHour.reduce((sum, count) => sum + count, 0)} 次 · 上厕所 {restroomByHour.reduce((sum, count) => sum + count, 0)} 次</span>
       </div>
     </section>
   )
@@ -818,8 +818,8 @@ function DrinkPickerModal({ cupCapacity, onClose, onConfirm }: DrinkPickerModalP
       <div className="member-modal drink-modal" role="dialog" aria-modal="true" aria-labelledby="drink-modal-title" onMouseDown={(event) => event.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="关闭">×</button>
         <span className="modal-drop drink-modal__drop">{selectedDrink.emoji}</span>
-        <h2 id="drink-modal-title">这次喝点什么？</h2>
-        <p>选好类型和容量，今天的每一口都有记录。</p>
+        <h2 id="drink-modal-title">准备什么饮品？</h2>
+        <p>选好类型和容量，再去享受这一杯。</p>
         <div className="drink-kind-picker">
           {DRINK_OPTIONS.map((option) => (
             <button type="button" key={option.value} className={kind === option.value ? 'is-picked' : ''} onClick={() => selectKind(option.value)}>
@@ -835,7 +835,7 @@ function DrinkPickerModal({ cupCapacity, onClose, onConfirm }: DrinkPickerModalP
             ))}
           </div>
         </div>
-        <button className="primary-button" type="button" onClick={() => onConfirm(kind, volume)}>记一杯 · {volume} ml</button>
+        <button className="primary-button" type="button" onClick={() => onConfirm(kind, volume)}>准备一杯 · {volume} ml</button>
       </div>
     </div>
   )
@@ -952,13 +952,17 @@ export default function App() {
       const fetch = actions.filter((item) => item.type === 'fetch').length
       const drink = actions.filter((item) => item.type === 'drink').length
       const restroom = actions.filter((item) => item.type === 'restroom').length
-      const drinkVolume = actions.reduce((total, item) => total + (item.type === 'drink' ? item.volume || selectedMember.cupCapacity : 0), 0)
+      const preparedVolume = actions.reduce((total, item) => {
+        if (item.type === 'fetch') return total + (item.volume || selectedMember.cupCapacity)
+        if (item.type === 'drink' && item.volume) return total + item.volume
+        return total
+      }, 0)
       return {
         date,
         fetch,
         drink,
         restroom,
-        volume: fetch * selectedMember.cupCapacity + drinkVolume,
+        volume: preparedVolume,
       }
     })
   }, [data.actions, selectedDate, selectedMember])
@@ -1088,7 +1092,7 @@ export default function App() {
       date: selectedDate,
       time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
       createdAt: Date.now(),
-      ...(type === 'drink' && drinkKind ? { drinkKind, volume } : {}),
+      ...(drinkKind ? { drinkKind, volume } : {}),
     }
     apiRequest<WaterAction>('/api/actions', {
       method: 'POST',
@@ -1106,7 +1110,7 @@ export default function App() {
       const milestones: Record<number, { title: string; message: string; emoji: string }> = {
         1: { title: '第一杯，开喝！', message: '今天的好习惯已经种下啦。', emoji: '💧' },
         4: { title: '半程小水手', message: '已经接到一半，和自己击个掌。', emoji: '🌱' },
-        8: { title: '今日接满啦！', message: '想喝还可以继续接，喝水不限次。', emoji: '⭐' },
+        8: { title: '今日准备满啦！', message: '想喝还可以继续准备，喝水不限次。', emoji: '⭐' },
         25: { title: '闪闪水手', message: '你和水杯已经很熟练啦。', emoji: '✨' },
         50: { title: '水之守护者', message: '这份坚持值得一朵彩虹。', emoji: '🌈' },
       }
@@ -1120,9 +1124,9 @@ export default function App() {
     })
   }
 
-  function recordDrink(kind: DrinkKind, volume: number) {
+  function recordPreparedDrink(kind: DrinkKind, volume: number) {
     setShowDrinkPicker(false)
-    record('drink', kind, volume)
+    record('fetch', kind, volume)
   }
 
   async function sendNudge() {
@@ -1352,7 +1356,7 @@ export default function App() {
               <div className="card-heading">
                 <div>
                   <span className="card-kicker"><span>✦</span> {selectedMember.name} 的今日水站</span>
-                  <h2>今天接了几杯水？</h2>
+                  <h2>今天准备了几杯？</h2>
                 </div>
                 <div className="hydrate-card__tools">
                   <div
@@ -1366,7 +1370,7 @@ export default function App() {
                     <span className="capacity-display__cup" aria-hidden="true">🥛</span>
                     <span className="capacity-display__copy">
                       <strong>{selectedMember.cupCapacity}<em> ml</em></strong>
-                      <small>接水目标 8 次</small>
+                      <small>每日目标 8 杯</small>
                     </span>
                   </div>
                   <button
@@ -1391,22 +1395,22 @@ export default function App() {
                     <div className="progress-ring__inside">
                       <span className="progress-drop">💧</span>
                       <strong>{fetchCount}<small>/ 8</small></strong>
-                      <span>接水次数</span>
+                      <span>准备杯数</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="action-zone">
                   <div className="action-grid">
-                    <button className={`water-action water-action--fetch ${actionBurst?.type === 'fetch' ? 'water-action--burst' : ''}`} onClick={() => record('fetch')} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
-                      <span className="water-action__icon"><span>＋</span>🚰</span>
+                    <button className={`water-action water-action--fetch ${actionBurst?.type === 'fetch' ? 'water-action--burst' : ''}`} onClick={() => setShowDrinkPicker(true)} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                      <span className="water-action__icon"><span>＋</span>🥤</span>
                       <span className="water-action__copy">
-                        <strong>接水啦</strong>
+                        <strong>准备一杯</strong>
                       </span>
                       <span className="water-action__count">{fetchCount}<small> 次</small></span>
                       {actionBurst?.type === 'fetch' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>✦</i><i>💧</i><i>·</i></span>}
                     </button>
-                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => setShowDrinkPicker(true)} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => record('drink')} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
                       <span className="water-action__icon"><span>＋</span>🥛</span>
                       <span className="water-action__copy">
                         <strong>喝水啦</strong>
@@ -1423,7 +1427,7 @@ export default function App() {
                       {actionBurst?.type === 'restroom' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>✦</i><i>◌</i><i>·</i></span>}
                     </button>
                   </div>
-                  <div className="cup-trail" aria-label={`今日接水进度 ${fetchCount}/8`}>
+                  <div className="cup-trail" aria-label={`今日准备进度 ${fetchCount}/8`}>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <span key={index} className={index < fetchCount ? 'is-full' : ''}>
                         {index < fetchCount ? '●' : '○'}
@@ -1538,12 +1542,12 @@ export default function App() {
                 <span className="member-total summary-member">{selectedMember.name}</span>
               </div>
               <div className="summary-total">
-                <div><strong>{summaryFetchTotal}</strong><span>接水次数</span></div>
+                <div><strong>{summaryFetchTotal}</strong><span>准备杯数</span></div>
                 <div><strong>{summaryVolumeTotal}<small> ml</small></strong><span>估算饮水量</span></div>
                 <div><strong>{summaryRestroomTotal}</strong><span>上厕所次数</span></div>
               </div>
               <div className="summary-streak"><span>🌿</span> 过去 7 天有 <strong>{recordDays} 天</strong> 记得来小水站</div>
-              <div className="summary-heatmap" aria-label="近七日接水热力图">
+              <div className="summary-heatmap" aria-label="近七日准备杯数热力图">
                 {summaryRows.map((row) => {
                   const intensity = Math.min(4, row.fetch)
                   return (
@@ -1552,8 +1556,8 @@ export default function App() {
                       key={row.date}
                       className={`heatmap-cell heatmap-cell--${intensity} ${row.date === selectedDate ? 'is-selected' : ''}`}
                       onClick={() => setSelectedDate(row.date)}
-                      title={`${formatMonthDay(row.date)}：接水 ${row.fetch} 次`}
-                      aria-label={`${formatMonthDay(row.date)}，接水 ${row.fetch} 次`}
+                      title={`${formatMonthDay(row.date)}：准备 ${row.fetch} 杯`}
+                      aria-label={`${formatMonthDay(row.date)}，准备 ${row.fetch} 杯`}
                     >
                       <span>{row.date === localDateKey() ? '今' : formatMonthDay(row.date).replace('/', ' / ')}</span>
                     </button>
@@ -1568,7 +1572,7 @@ export default function App() {
                       <small>{formatWeekday(row.date)}</small>
                     </div>
                     <div className="summary-row__counts">
-                      <span><i>🚰</i>{row.fetch}</span>
+                      <span><i>🥤</i>{row.fetch}</span>
                       <span><i>💧</i>{row.drink}</span>
                       <span><i>🚻</i>{row.restroom}</span>
                     </div>
@@ -1614,7 +1618,7 @@ export default function App() {
         <DrinkPickerModal
           cupCapacity={currentUserMember.cupCapacity}
           onClose={() => setShowDrinkPicker(false)}
-          onConfirm={recordDrink}
+          onConfirm={recordPreparedDrink}
         />
       )}
       {showResetConfirm && (

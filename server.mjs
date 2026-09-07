@@ -197,7 +197,8 @@ function validMemberPayload(payload) {
 
 function validActionPayload(payload) {
   const validDrinkKinds = ['water', 'milkTea', 'coffee', 'beverage']
-  const hasValidDrinkDetails = payload.type !== 'drink'
+  const hasDrinkDetails = payload.drinkKind != null || payload.volume != null
+  const hasValidDrinkDetails = !hasDrinkDetails
     || (validDrinkKinds.includes(payload.drinkKind) && Number.isInteger(Number(payload.volume)) && Number(payload.volume) > 0 && Number(payload.volume) <= 2000)
   return payload
     && typeof payload.id === 'string'
