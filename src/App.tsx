@@ -44,11 +44,25 @@ type Nudge = {
   createdAt: number
 }
 
+type DailyNote = {
+  date: string
+  content: string
+  likes: number
+  updatedAt: number | null
+}
+
+type NoteLike = {
+  date: string
+  memberId: string
+}
+
 type AppData = {
   currentUser: string | null
   members: Member[]
   actions: WaterAction[]
   nudges: Nudge[]
+  notes: DailyNote[]
+  noteLikes: NoteLike[]
 }
 
 const SESSION_KEY = 'gulu-diary-session-v1'
@@ -65,12 +79,15 @@ const GENDER_OPTIONS: Array<{ value: Gender; label: string; emoji: string }> = [
   { value: 'male', label: '男生', emoji: '♂' },
   { value: 'secret', label: '保密', emoji: '♡' },
 ]
+const DEFAULT_NOTE = '水要慢慢喝，\n喜欢要一直在。'
 
 const emptyData: AppData = {
   currentUser: null,
   members: [],
   actions: [],
   nudges: [],
+  notes: [],
+  noteLikes: [],
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -742,14 +759,23 @@ export default function App() {
   const [actionBurst, setActionBurst] = useState<{ type: ActionType; id: string } | null>(null)
   const [nudgeNotice, setNudgeNotice] = useState<string | null>(null)
   const [milestone, setMilestone] = useState<{ title: string; message: string; emoji: string } | null>(null)
+  const [isEditingNote, setIsEditingNote] = useState(false)
+  const [noteDraft, setNoteDraft] = useState('')
 
   useEffect(() => {
     let active = true
-    apiRequest<{ members: Member[]; actions: WaterAction[]; nudges: Nudge[] }>('/api/bootstrap')
+    apiRequest<{ members: Member[]; actions: WaterAction[]; nudges: Nudge[]; notes: DailyNote[]; noteLikes: NoteLike[] }>('/api/bootstrap')
       .then((payload) => {
         if (!active) return
         const savedUser = localStorage.getItem(SESSION_KEY)
-        setData({ currentUser: savedUser, members: payload.members, actions: payload.actions, nudges: payload.nudges || [] })
+        setData({
+          currentUser: savedUser,
+          members: payload.members,
+          actions: payload.actions,
+          nudges: payload.nudges || [],
+          notes: payload.notes || [],
+          noteLikes: payload.noteLikes || [],
+        })
       })
       .catch(() => {
         if (active) setRequestError('小水站还没有启动，请先运行 npm run start')
@@ -765,6 +791,11 @@ export default function App() {
     const ownMember = data.members.find((member) => member.name === data.currentUser)
     setSelectedMemberId(ownMember?.id ?? data.members[0]?.id ?? null)
   }, [data.currentUser, data.members, selectedMemberId])
+
+  useEffect(() => {
+    setIsEditingNote(false)
+    setNoteDraft('')
+  }, [selectedDate])
 
   const dayActions = useMemo(
     () => data.actions.filter((item) => item.date === selectedDate),
@@ -811,6 +842,12 @@ export default function App() {
   const coupleTarget = Math.max(1, data.members.length * 8)
   const coupleProgress = Math.min(100, Math.round((coupleFetchCount / coupleTarget) * 100))
   const nudgeCount = selectedMember ? data.nudges.filter((nudge) => nudge.toMemberId === selectedMember.id).length : 0
+  const currentNote = data.notes.find((note) => note.date === selectedDate)
+  const noteContent = currentNote?.content || DEFAULT_NOTE
+  const noteLikeCount = currentNote?.likes || 0
+  const noteLiked = currentUserMember
+    ? data.noteLikes.some((like) => like.date === selectedDate && like.memberId === currentUserMember.id)
+    : false
 
   async function login(profile: LoginProfile) {
     try {
@@ -938,6 +975,54 @@ export default function App() {
       window.setTimeout(() => setNudgeNotice(null), 2400)
     } catch {
       setRequestError('提醒暂时没有送达，请稍后再试')
+    }
+  }
+
+  function startNoteEdit() {
+    setNoteDraft(noteContent)
+    setIsEditingNote(true)
+  }
+
+  async function saveNote() {
+    const content = noteDraft.trim()
+    if (!content) return
+    try {
+      const savedNote = await apiRequest<DailyNote>('/api/notes', {
+        method: 'POST',
+        body: JSON.stringify({ date: selectedDate, content }),
+      })
+      setData((previous) => ({
+        ...previous,
+        notes: previous.notes.some((note) => note.date === selectedDate)
+          ? previous.notes.map((note) => note.date === selectedDate ? savedNote : note)
+          : [...previous.notes, savedNote],
+      }))
+      setIsEditingNote(false)
+      setRequestError('')
+    } catch {
+      setRequestError('小纸条暂时没有保存成功，请稍后再试')
+    }
+  }
+
+  async function toggleNoteLike() {
+    if (!currentUserMember) return
+    try {
+      const result = await apiRequest<{ note: DailyNote; liked: boolean }>(`/api/notes/${encodeURIComponent(selectedDate)}/like`, {
+        method: 'POST',
+        body: JSON.stringify({ memberId: currentUserMember.id }),
+      })
+      setData((previous) => ({
+        ...previous,
+        notes: previous.notes.some((note) => note.date === selectedDate)
+          ? previous.notes.map((note) => note.date === selectedDate ? result.note : note)
+          : [...previous.notes, result.note],
+        noteLikes: result.liked
+          ? [...previous.noteLikes, { date: selectedDate, memberId: currentUserMember.id }]
+          : previous.noteLikes.filter((like) => !(like.date === selectedDate && like.memberId === currentUserMember.id)),
+      }))
+      navigator.vibrate?.(8)
+    } catch {
+      setRequestError('点赞暂时没有保存成功，请稍后再试')
     }
   }
 
@@ -1160,12 +1245,28 @@ export default function App() {
                 <span className="tape" aria-hidden="true" />
                 <span className="note-doodle note-doodle--heart">♡</span>
                 <span className="note-doodle note-doodle--spark">✦</span>
-                <p>今日小纸条</p>
-                <blockquote>“水要慢慢喝，<br />喜欢要一直在。”</blockquote>
+                <div className="note-heading">
+                  <p>{isToday ? '今日小纸条' : `${formatMonthDay(selectedDate)} 小纸条`}</p>
+                  <button type="button" className="note-edit-button" onClick={startNoteEdit}>✎ 编辑</button>
+                </div>
+                {isEditingNote ? (
+                  <div className="note-editor">
+                    <textarea value={noteDraft} maxLength={160} onChange={(event) => setNoteDraft(event.target.value)} autoFocus />
+                    <div className="note-editor__actions">
+                      <button type="button" onClick={() => setIsEditingNote(false)}>取消</button>
+                      <button type="button" onClick={saveNote} disabled={!noteDraft.trim()}>保存</button>
+                    </div>
+                  </div>
+                ) : (
+                  <blockquote>“{noteContent}”</blockquote>
+                )}
                 <div className="note-footer">
                   <span className="mini-avatars">
                     {data.members.slice(0, 3).map((member) => <i key={member.id} style={{ background: member.color }}>{member.emoji}</i>)}
                   </span>
+                  <button type="button" className={`note-like-button ${noteLiked ? 'is-liked' : ''}`} onClick={toggleNoteLike} aria-pressed={noteLiked}>
+                    <span>{noteLiked ? '♥' : '♡'}</span> {noteLikeCount}
+                  </button>
                 </div>
               </section>
               <section className="tip-card">

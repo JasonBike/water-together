@@ -14,6 +14,7 @@
 - **自己的记录**：当前登录账号可以记录接水、喝水和上厕所，也可以撤销刚刚的操作。
 - **查看搭子**：可以点击成员查看对方的当天统计、小时节奏图和近 7 日汇总；进入别人空间时为只读，不能替对方累计或重置。
 - **搭子提醒**：查看别人时可以送出一颗“记得喝水”小水滴，提醒会写入服务器。
+- **每日小纸条**：话术按日期保存，可编辑；每个账号每天可点赞或取消点赞，历史日期会保留对应点赞数。
 - **日期浏览**：支持前后翻页、自绘日历直接选择日期，以及回到今天。
 - **节奏图表**：使用 ECharts 绘制 24 小时折线图，展示接水、喝水和上厕所的次数集中时段；点击图例可以单独隐藏或显示某条曲线。
 - **容量估算**：根据“接水次数 × 水杯容量”估算每日和近 7 日饮水量；喝水次数不设上限。
@@ -93,6 +94,7 @@ PORT=8080 WATER_DB_PATH=/var/lib/water-together/water.sqlite node server.mjs
 - 全员当日统计
 - 近 7 日汇总：每日接水/喝水次数与按杯容量估算的饮水量
 - ECharts 当日水站节奏折线图：按小时展示接水、喝水和上厕所的次数集中度
+- 每日小纸条编辑和点赞
 - 单次操作撤销
 - 按当前日期重置当前账号记录（清空前确认）
 - SQLite 文件持久化（`data/water-together.sqlite`）
@@ -118,7 +120,7 @@ PORT=8080 WATER_DB_PATH=/var/lib/water-together/water.sqlite node server.mjs
 GET /api/bootstrap
 ```
 
-返回成员和全部记录：
+返回成员、饮水记录、提醒、小纸条和点赞关系：
 
 ```json
 {
@@ -141,6 +143,13 @@ GET /api/bootstrap
       "time": "14:30",
       "createdAt": 1770000000000
     }
+  ],
+  "nudges": [],
+  "notes": [
+    { "date": "2026-09-03", "content": "水要慢慢喝，\\n喜欢要一直在。", "likes": 2, "updatedAt": 1770000000000 }
+  ],
+  "noteLikes": [
+    { "date": "2026-09-03", "memberId": "member-abc" }
   ]
 }
 ```
@@ -256,6 +265,46 @@ Content-Type: application/json
 ```
 
 `fromMemberId` 和 `toMemberId` 必须是两个已存在的成员。成功返回 `201` 和提醒记录；参数不合法返回 `400`。提醒记录会随 `/api/bootstrap` 一起返回。
+
+### 编辑每日小纸条
+
+```http
+POST /api/notes
+Content-Type: application/json
+```
+
+请求字段：
+
+```json
+{
+  "date": "2026-09-03",
+  "content": "今天也要慢慢喝水\\n给自己一个拥抱"
+}
+```
+
+每个日期一条小纸条；重复提交同一天会更新话术。`content` 长度为 1–160 个字符，成功返回该日期的小纸条和当前点赞数。
+
+### 给每日小纸条点赞 / 取消点赞
+
+```http
+POST /api/notes/{date}/like
+Content-Type: application/json
+```
+
+请求体：
+
+```json
+{ "memberId": "member-abc" }
+```
+
+同一成员对同一天重复调用会在点赞和取消点赞之间切换，返回：
+
+```json
+{
+  "note": { "date": "2026-09-03", "content": "...", "likes": 3 },
+  "liked": true
+}
+```
 
 ### API 权限边界
 

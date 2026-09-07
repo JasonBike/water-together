@@ -50,6 +50,21 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS nudges_to_member_idx ON nudges(to_member_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS daily_notes (
+    date TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS note_likes (
+    date TEXT NOT NULL REFERENCES daily_notes(date) ON DELETE CASCADE,
+    member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (date, member_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS note_likes_member_idx ON note_likes(member_id, date);
 `)
 
 const memberColumns = 'id, name, emoji, color, gender, cup_capacity AS cupCapacity'
@@ -82,6 +97,18 @@ const insertNudge = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?)
 `)
 const selectNudge = db.prepare(`SELECT ${nudgeColumns} FROM nudges WHERE id = ?`)
+const selectNotes = db.prepare('SELECT date, content, updated_at AS updatedAt FROM daily_notes ORDER BY date ASC')
+const selectNoteLikeRows = db.prepare('SELECT date, member_id AS memberId FROM note_likes ORDER BY created_at ASC')
+const selectNote = db.prepare('SELECT date, content, updated_at AS updatedAt FROM daily_notes WHERE date = ?')
+const selectNoteLikesCount = db.prepare('SELECT COUNT(*) AS likes FROM note_likes WHERE date = ?')
+const selectNoteLike = db.prepare('SELECT date, member_id AS memberId FROM note_likes WHERE date = ? AND member_id = ?')
+const upsertNote = db.prepare(`
+  INSERT INTO daily_notes (date, content, updated_at)
+  VALUES (?, ?, ?)
+  ON CONFLICT(date) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at
+`)
+const insertNoteLike = db.prepare('INSERT INTO note_likes (date, member_id, created_at) VALUES (?, ?, ?)')
+const deleteNoteLike = db.prepare('DELETE FROM note_likes WHERE date = ? AND member_id = ?')
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -154,6 +181,16 @@ function validActionPayload(payload) {
     && typeof payload.createdAt === 'number'
 }
 
+function validDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function noteView(date) {
+  const note = selectNote.get(date)
+  if (!note) return { date, content: '', likes: 0, updatedAt: null }
+  return { ...note, likes: Number(selectNoteLikesCount.get(date)?.likes || 0) }
+}
+
 async function handleApi(request, response, url) {
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
@@ -166,7 +203,13 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/bootstrap') {
-    sendJson(response, 200, { members: selectMembers.all(), actions: selectActions.all(), nudges: selectNudges.all() })
+    sendJson(response, 200, {
+      members: selectMembers.all(),
+      actions: selectActions.all(),
+      nudges: selectNudges.all(),
+      notes: selectNotes.all().map((note) => ({ ...note, likes: Number(selectNoteLikesCount.get(note.date)?.likes || 0) })),
+      noteLikes: selectNoteLikeRows.all(),
+    })
     return
   }
 
@@ -220,6 +263,34 @@ async function handleApi(request, response, url) {
     }
     insertNudge.run(payload.id, payload.fromMemberId, payload.toMemberId, payload.date, payload.time, payload.createdAt)
     sendJson(response, 201, selectNudge.get(payload.id))
+    return
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/notes') {
+    const payload = await readBody(request)
+    if (!validDate(payload.date) || typeof payload.content !== 'string' || payload.content.trim().length < 1 || payload.content.trim().length > 160) {
+      sendJson(response, 400, { error: 'invalid note payload' })
+      return
+    }
+    const date = payload.date
+    upsertNote.run(date, payload.content.trim(), Date.now())
+    sendJson(response, 200, noteView(date))
+    return
+  }
+
+  const noteLikeMatch = url.pathname.match(/^\/api\/notes\/([^/]+)\/like$/)
+  if (request.method === 'POST' && noteLikeMatch) {
+    const date = decodeURIComponent(noteLikeMatch[1])
+    const payload = await readBody(request)
+    if (!validDate(date) || !payload || typeof payload.memberId !== 'string' || !memberExists.get(payload.memberId)) {
+      sendJson(response, 400, { error: 'invalid note like payload' })
+      return
+    }
+    if (!selectNote.get(date)) upsertNote.run(date, '', Date.now())
+    const existingLike = selectNoteLike.get(date, payload.memberId)
+    if (existingLike) deleteNoteLike.run(date, payload.memberId)
+    else insertNoteLike.run(date, payload.memberId, Date.now())
+    sendJson(response, 200, { note: noteView(date), liked: !existingLike })
     return
   }
 

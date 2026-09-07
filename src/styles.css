@@ -2398,12 +2398,94 @@ input:focus-visible {
   transform: translateX(-50%) rotate(-2deg);
 }
 
-.love-note-card > p {
+.note-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.note-heading > p {
   margin: 0;
   color: #d09291;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .12em;
+}
+
+.note-edit-button {
+  padding: 4px 7px;
+  border: 1px dashed #e5c0b7;
+  border-radius: 7px;
+  color: #ae7f78;
+  background: rgba(255, 255, 255, .45);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+  transition: .18s ease;
+}
+
+.note-edit-button:hover {
+  border-color: #d59c99;
+  background: #fff;
+  transform: rotate(-2deg);
+}
+
+.note-editor {
+  margin: 12px 0 15px;
+}
+
+.note-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 92px;
+  padding: 10px 11px;
+  border: 1px solid #ecd4c9;
+  border-radius: 11px;
+  outline: 0;
+  resize: vertical;
+  color: #685e59;
+  background: rgba(255, 255, 255, .65);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.note-editor textarea:focus {
+  border-color: #d7a7a1;
+  box-shadow: 0 0 0 3px rgba(224, 169, 157, .12);
+}
+
+.note-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.note-editor__actions button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.note-editor__actions button:first-child {
+  border: 1px solid #eadbd1;
+  color: #9b8c84;
+  background: #fffaf5;
+}
+
+.note-editor__actions button:last-child {
+  border: 1px solid #dda5a0;
+  color: white;
+  background: #dda5a0;
+}
+
+.note-editor__actions button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
 }
 
 .love-note-card blockquote {
@@ -2412,6 +2494,7 @@ input:focus-visible {
   font-family: "Kaiti SC", "STKaiti", serif;
   font-size: 20px;
   line-height: 1.7;
+  white-space: pre-line;
 }
 
 .note-doodle {
@@ -2439,6 +2522,47 @@ input:focus-visible {
   justify-content: space-between;
   color: #a79b93;
   font-size: 8px;
+}
+
+.note-like-button {
+  display: inline-flex;
+  min-width: 45px;
+  height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid #ebceca;
+  border-radius: 9px;
+  color: #ae7c7d;
+  background: rgba(255, 255, 255, .52);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  transition: .18s ease;
+}
+
+.note-like-button span {
+  color: #d9939a;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.note-like-button:hover,
+.note-like-button.is-liked {
+  border-color: #e5a3a7;
+  color: #a8676f;
+  background: #fff0ef;
+  transform: translateY(-1px) rotate(-2deg);
+}
+
+.note-like-button.is-liked span {
+  animation: like-pop .36s ease-out;
+}
+
+@keyframes like-pop {
+  0% { transform: scale(.7); }
+  55% { transform: scale(1.3); }
+  100% { transform: scale(1); }
 }
 
 .mini-avatars {
@@ -3039,7 +3163,7 @@ input:focus-visible {
   font-size: 9px;
 }
 
-.love-note-card > p,
+.note-heading > p,
 .note-footer,
 .tip-card p {
   font-size: 11px;
@@ -3167,7 +3291,7 @@ body {
   color: #806aa0;
 }
 
-.love-note-card > p,
+.note-heading > p,
 .note-footer,
 .tip-card p {
   color: #806d68;
