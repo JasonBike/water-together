@@ -39,12 +39,25 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS actions_member_date_idx ON actions(member_id, date);
   CREATE INDEX IF NOT EXISTS actions_created_at_idx ON actions(created_at);
+
+  CREATE TABLE IF NOT EXISTS nudges (
+    id TEXT PRIMARY KEY,
+    from_member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    to_member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    time TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS nudges_to_member_idx ON nudges(to_member_id, created_at);
 `)
 
 const memberColumns = 'id, name, emoji, color, gender, cup_capacity AS cupCapacity'
 const actionColumns = 'id, member_id AS memberId, type, date, time, created_at AS createdAt'
+const nudgeColumns = 'id, from_member_id AS fromMemberId, to_member_id AS toMemberId, date, time, created_at AS createdAt'
 const selectMembers = db.prepare(`SELECT ${memberColumns} FROM members ORDER BY created_at ASC`)
 const selectActions = db.prepare(`SELECT ${actionColumns} FROM actions ORDER BY created_at ASC`)
+const selectNudges = db.prepare(`SELECT ${nudgeColumns} FROM nudges ORDER BY created_at ASC`)
 const selectMember = db.prepare(`SELECT ${memberColumns} FROM members WHERE id = ?`)
 const selectMemberByName = db.prepare(`SELECT ${memberColumns} FROM members WHERE name = ?`)
 const upsertMember = db.prepare(`
@@ -64,6 +77,11 @@ const selectAction = db.prepare(`SELECT ${actionColumns} FROM actions WHERE id =
 const deleteAction = db.prepare('DELETE FROM actions WHERE id = ?')
 const deleteDateActions = db.prepare('DELETE FROM actions WHERE member_id = ? AND date = ?')
 const memberExists = db.prepare('SELECT id FROM members WHERE id = ?')
+const insertNudge = db.prepare(`
+  INSERT INTO nudges (id, from_member_id, to_member_id, date, time, created_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+`)
+const selectNudge = db.prepare(`SELECT ${nudgeColumns} FROM nudges WHERE id = ?`)
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -148,7 +166,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === 'GET' && url.pathname === '/api/bootstrap') {
-    sendJson(response, 200, { members: selectMembers.all(), actions: selectActions.all() })
+    sendJson(response, 200, { members: selectMembers.all(), actions: selectActions.all(), nudges: selectNudges.all() })
     return
   }
 
@@ -181,6 +199,27 @@ async function handleApi(request, response, url) {
     }
     insertAction.run(payload.id, payload.memberId, payload.type, payload.date, payload.time, payload.createdAt)
     sendJson(response, 201, selectAction.get(payload.id))
+    return
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/nudges') {
+    const payload = await readBody(request)
+    const valid = payload
+      && typeof payload.id === 'string'
+      && typeof payload.fromMemberId === 'string'
+      && typeof payload.toMemberId === 'string'
+      && payload.fromMemberId !== payload.toMemberId
+      && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)
+      && typeof payload.time === 'string'
+      && typeof payload.createdAt === 'number'
+      && memberExists.get(payload.fromMemberId)
+      && memberExists.get(payload.toMemberId)
+    if (!valid) {
+      sendJson(response, 400, { error: 'invalid nudge payload' })
+      return
+    }
+    insertNudge.run(payload.id, payload.fromMemberId, payload.toMemberId, payload.date, payload.time, payload.createdAt)
+    sendJson(response, 201, selectNudge.get(payload.id))
     return
   }
 

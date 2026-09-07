@@ -35,10 +35,20 @@ type WaterAction = {
   createdAt: number
 }
 
+type Nudge = {
+  id: string
+  fromMemberId: string
+  toMemberId: string
+  date: string
+  time: string
+  createdAt: number
+}
+
 type AppData = {
   currentUser: string | null
   members: Member[]
   actions: WaterAction[]
+  nudges: Nudge[]
 }
 
 const SESSION_KEY = 'gulu-diary-session-v1'
@@ -60,6 +70,7 @@ const emptyData: AppData = {
   currentUser: null,
   members: [],
   actions: [],
+  nudges: [],
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -114,6 +125,18 @@ function uid(prefix: string) {
 
 function countOf(actions: WaterAction[], memberId: string, type: ActionType) {
   return actions.filter((item) => item.memberId === memberId && item.type === type).length
+}
+
+function daysWithRecords(actions: WaterAction[], memberId: string, fromDate: string, days: number) {
+  return Array.from({ length: days }, (_, index) => shiftDate(fromDate, -index))
+    .filter((date) => actions.some((item) => item.memberId === memberId && item.date === date)).length
+}
+
+function cupLevel(fetchTotal: number) {
+  if (fetchTotal >= 50) return { level: 4, name: '水之守护者', emoji: '🌈', progress: 100, next: 'MAX' }
+  if (fetchTotal >= 25) return { level: 3, name: '闪闪水手', emoji: '⭐', progress: ((fetchTotal - 25) / 25) * 100, next: `下一级 ${50 - fetchTotal} 杯` }
+  if (fetchTotal >= 10) return { level: 2, name: '小小水手', emoji: '🌱', progress: ((fetchTotal - 10) / 15) * 100, next: `下一级 ${25 - fetchTotal} 杯` }
+  return { level: 1, name: '新手水滴', emoji: '💧', progress: (fetchTotal / 10) * 100, next: `下一级 ${10 - fetchTotal} 杯` }
 }
 
 function greeting() {
@@ -703,20 +726,6 @@ function ResetConfirmModal({ dateLabel, actionCount, onClose, onConfirm }: Reset
   )
 }
 
-function EmptyTimeline() {
-  return (
-    <div className="empty-timeline">
-      <div className="empty-cup" aria-hidden="true">
-        <span>˙ᵕ˙</span>
-      </div>
-      <div>
-        <strong>还没有咕噜动态</strong>
-        <p>接好第一杯水，今天的故事就开始啦。</p>
-      </div>
-    </div>
-  )
-}
-
 function AppLoading() {
   return (
     <main className="app-loading">
@@ -736,14 +745,16 @@ export default function App() {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [lastAction, setLastAction] = useState<WaterAction | null>(null)
   const [actionBurst, setActionBurst] = useState<{ type: ActionType; id: string } | null>(null)
+  const [nudgeNotice, setNudgeNotice] = useState<string | null>(null)
+  const [milestone, setMilestone] = useState<{ title: string; message: string; emoji: string } | null>(null)
 
   useEffect(() => {
     let active = true
-    apiRequest<{ members: Member[]; actions: WaterAction[] }>('/api/bootstrap')
+    apiRequest<{ members: Member[]; actions: WaterAction[]; nudges: Nudge[] }>('/api/bootstrap')
       .then((payload) => {
         if (!active) return
         const savedUser = localStorage.getItem(SESSION_KEY)
-        setData({ currentUser: savedUser, members: payload.members, actions: payload.actions })
+        setData({ currentUser: savedUser, members: payload.members, actions: payload.actions, nudges: payload.nudges || [] })
       })
       .catch(() => {
         if (active) setRequestError('小水站还没有启动，请先运行 npm run start')
@@ -797,6 +808,14 @@ export default function App() {
   const summaryFetchTotal = summaryRows.reduce((total, row) => total + row.fetch, 0)
   const summaryRestroomTotal = summaryRows.reduce((total, row) => total + row.restroom, 0)
   const summaryVolumeTotal = summaryRows.reduce((total, row) => total + row.volume, 0)
+  const recordDays = selectedMember ? daysWithRecords(data.actions, selectedMember.id, selectedDate, 7) : 0
+  const memberFetchTotal = selectedMember ? countOf(data.actions, selectedMember.id, 'fetch') : 0
+  const cupProgress = cupLevel(memberFetchTotal)
+  const coupleFetchCount = data.actions.filter((item) => item.date === selectedDate && item.type === 'fetch').length
+  const coupleDrinkCount = data.actions.filter((item) => item.date === selectedDate && item.type === 'drink').length
+  const coupleTarget = Math.max(1, data.members.length * 8)
+  const coupleProgress = Math.min(100, Math.round((coupleFetchCount / coupleTarget) * 100))
+  const nudgeCount = selectedMember ? data.nudges.filter((nudge) => nudge.toMemberId === selectedMember.id).length : 0
 
   async function login(profile: LoginProfile) {
     try {
@@ -883,9 +902,48 @@ export default function App() {
         setActionBurst((current) => current?.id === savedAction.id ? null : current)
       }, 720)
       setRequestError('')
+      navigator.vibrate?.(10)
+      const nextFetchCount = countOf(data.actions, selectedMember.id, 'fetch') + (type === 'fetch' ? 1 : 0)
+      const milestones: Record<number, { title: string; message: string; emoji: string }> = {
+        1: { title: '第一杯，开喝！', message: '今天的好习惯已经种下啦。', emoji: '💧' },
+        4: { title: '半程小水手', message: '已经接到一半，和自己击个掌。', emoji: '🌱' },
+        8: { title: '今日接满啦！', message: '想喝还可以继续接，喝水不限次。', emoji: '⭐' },
+        25: { title: '闪闪水手', message: '你和水杯已经很熟练啦。', emoji: '✨' },
+        50: { title: '水之守护者', message: '这份坚持值得一朵彩虹。', emoji: '🌈' },
+      }
+      if (type === 'fetch' && milestones[nextFetchCount]) {
+        const nextMilestone = milestones[nextFetchCount]
+        setMilestone(nextMilestone)
+        window.setTimeout(() => setMilestone((current) => current === nextMilestone ? null : current), 2600)
+      }
     }).catch(() => {
       setRequestError('这次记录没有保存成功，请稍后再试')
     })
+  }
+
+  async function sendNudge() {
+    if (canRecord || !selectedMember || !currentUserMember) return
+    const now = new Date()
+    const nudge: Nudge = {
+      id: uid('nudge'),
+      fromMemberId: currentUserMember.id,
+      toMemberId: selectedMember.id,
+      date: selectedDate,
+      time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      createdAt: Date.now(),
+    }
+    try {
+      const savedNudge = await apiRequest<Nudge>('/api/nudges', {
+        method: 'POST',
+        body: JSON.stringify(nudge),
+      })
+      setData((previous) => ({ ...previous, nudges: [...previous.nudges, savedNudge] }))
+      setNudgeNotice(`已给 ${selectedMember.name} 送去一颗小水滴`)
+      navigator.vibrate?.(8)
+      window.setTimeout(() => setNudgeNotice(null), 2400)
+    } catch {
+      setRequestError('提醒暂时没有送达，请稍后再试')
+    }
   }
 
   async function undoLastAction() {
@@ -1020,6 +1078,8 @@ export default function App() {
                     重置本日
                   </button>
                   {!canRecord && <span className="readonly-badge">只读</span>}
+                  {!canRecord && <button className="nudge-button" onClick={sendNudge}><span>💌</span>提醒 TA</button>}
+                  {canRecord && nudgeCount > 0 && <span className="nudge-count">收到 {nudgeCount} 次提醒</span>}
                 </div>
               </div>
 
@@ -1078,6 +1138,28 @@ export default function App() {
                     <small>{fetchCount >= 8 ? '接够啦，喝水不限次' : `再接 ${8 - fetchCount} 次就收集满啦`}</small>
                   </div>
                 </div>
+              </div>
+              <div className="pair-progress">
+                <div className="pair-progress__top">
+                  <span><span className="pair-progress__heart">♡</span> 我们今天一起接了</span>
+                  <strong>{coupleFetchCount}<small> / {coupleTarget} 杯</small></strong>
+                </div>
+                <div className="pair-progress__bar"><span style={{ width: `${coupleProgress}%` }} /></div>
+                <div className="pair-progress__bottom">
+                  <span className="mini-avatars">
+                    {data.members.slice(0, 4).map((member) => <i key={member.id} style={{ background: member.color }}>{member.emoji}</i>)}
+                  </span>
+                  <span>{coupleProgress >= 100 ? '双倍补水完成！' : '一起接水，一起变健康'}</span>
+                  <span>喝水 {coupleDrinkCount} 次</span>
+                </div>
+              </div>
+              <div className="cup-growth">
+                <span className="cup-growth__emoji">{cupProgress.emoji}</span>
+                <div className="cup-growth__copy">
+                  <div><strong>水杯成长 Lv.{cupProgress.level}</strong><small>{cupProgress.name} · 累计接水 {memberFetchTotal} 杯</small></div>
+                  <div className="cup-growth__bar"><span style={{ width: `${cupProgress.progress}%` }} /></div>
+                </div>
+                <span className="cup-growth__next">{cupProgress.next}</span>
               </div>
             </section>
 
@@ -1150,6 +1232,24 @@ export default function App() {
                 <div><strong>{summaryVolumeTotal}<small> ml</small></strong><span>估算饮水量</span></div>
                 <div><strong>{summaryRestroomTotal}</strong><span>上厕所次数</span></div>
               </div>
+              <div className="summary-streak"><span>🌿</span> 过去 7 天有 <strong>{recordDays} 天</strong> 记得来小水站</div>
+              <div className="summary-heatmap" aria-label="近七日接水热力图">
+                {summaryRows.map((row) => {
+                  const intensity = Math.min(4, row.fetch)
+                  return (
+                    <button
+                      type="button"
+                      key={row.date}
+                      className={`heatmap-cell heatmap-cell--${intensity} ${row.date === selectedDate ? 'is-selected' : ''}`}
+                      onClick={() => setSelectedDate(row.date)}
+                      title={`${formatMonthDay(row.date)}：接水 ${row.fetch} 次`}
+                      aria-label={`${formatMonthDay(row.date)}，接水 ${row.fetch} 次`}
+                    >
+                      <span>{row.date === localDateKey() ? '今' : formatMonthDay(row.date).replace('/', ' / ')}</span>
+                    </button>
+                  )
+                })}
+              </div>
               <p className="summary-note">按 {selectedMember.cupCapacity} ml / 杯估算，每接一杯就记入容量。</p>
               <div className="summary-list">
                 {summaryRows.map((row) => (
@@ -1172,6 +1272,17 @@ export default function App() {
           </aside>
         </div>
       </main>
+
+      {milestone && (
+        <div className="milestone-pop" role="status">
+          <span className="milestone-pop__spark" aria-hidden="true">✦</span>
+          <span className="milestone-pop__emoji">{milestone.emoji}</span>
+          <div><strong>{milestone.title}</strong><small>{milestone.message}</small></div>
+          <span className="milestone-pop__spark milestone-pop__spark--right" aria-hidden="true">✦</span>
+        </div>
+      )}
+
+      {nudgeNotice && <div className="nudge-toast" role="status"><span>💌</span>{nudgeNotice}</div>}
 
       {lastAction && (
         <div className="toast" key={lastAction.id} role="status">
