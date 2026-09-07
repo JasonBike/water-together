@@ -1375,12 +1375,6 @@ input:focus-visible {
   transform: translateY(-1px);
 }
 
-.chart-subtitle {
-  margin: 6px 0 0;
-  color: #a5adae;
-  font-size: 11px;
-}
-
 .chart-canvas {
   width: 100%;
   height: 275px;
@@ -1652,20 +1646,8 @@ input:focus-visible {
   font-size: 9px;
 }
 
-.progress-wrap p {
-  margin: 13px 0 0;
-  color: #8f999c;
-  font-size: 10px;
-}
-
 .action-zone {
   min-width: 0;
-}
-
-.action-zone__hint {
-  margin: 0 0 10px;
-  color: #abb0b0;
-  font-size: 10px;
 }
 
 .action-grid {
@@ -1886,12 +1868,6 @@ input:focus-visible {
   color: #82c5dd;
 }
 
-.cup-trail small {
-  margin-left: 4px;
-  color: #a2aaab;
-  font-size: 9px;
-}
-
 .pair-progress {
   margin-top: 22px;
   padding: 15px 17px 13px;
@@ -2013,12 +1989,6 @@ input:focus-visible {
 
 .cup-growth__bar span {
   background: linear-gradient(90deg, #9fcfa8, #dfc782);
-}
-
-.cup-growth__next {
-  color: #9daaa0;
-  font-size: 8px;
-  white-space: nowrap;
 }
 
 .reset-button {
@@ -2144,12 +2114,6 @@ input:focus-visible {
   white-space: nowrap;
 }
 
-.team-name small {
-  margin-top: 4px;
-  color: #abb0b0;
-  font-size: 8px;
-}
-
 .team-stats {
   display: flex;
   gap: 4px;
@@ -2256,13 +2220,6 @@ input:focus-visible {
   margin-top: 6px;
   color: #9ca8a9;
   font-size: 8px;
-}
-
-.summary-note {
-  margin: 0 1px 12px;
-  color: #adb1af;
-  font-size: 8px;
-  line-height: 1.5;
 }
 
 .summary-streak {
@@ -3034,14 +2991,8 @@ input:focus-visible {
   font-size: 16px;
 }
 
-.progress-ring__inside > span:last-child,
-.progress-wrap p,
-.action-zone__hint {
+.progress-ring__inside > span:last-child {
   font-size: 12px;
-}
-
-.water-action__copy small {
-  font-size: 11px;
 }
 
 .water-action__copy strong {
@@ -3052,8 +3003,7 @@ input:focus-visible {
   font-size: 28px;
 }
 
-.water-action__count small,
-.cup-trail small {
+.water-action__count small {
   font-size: 11px;
 }
 
@@ -3065,10 +3015,6 @@ input:focus-visible {
   font-size: 13px;
 }
 
-.team-name small {
-  font-size: 10px;
-}
-
 .team-stats b {
   font-size: 12px;
 }
@@ -3078,7 +3024,6 @@ input:focus-visible {
 }
 
 .summary-total span,
-.summary-note,
 .summary-date small,
 .summary-row__counts span,
 .summary-volume,
@@ -3185,10 +3130,7 @@ body {
   color: #5e767e;
 }
 
-.progress-ring__inside > span:last-child,
-.progress-wrap p,
-.action-zone__hint,
-.cup-trail small {
+.progress-ring__inside > span:last-child {
   color: #6f8085;
 }
 
@@ -3200,22 +3142,14 @@ body {
   color: #875b61;
 }
 
-.water-action__copy small {
-  color: inherit;
-  opacity: .9;
-}
-
 .team-name strong,
 .summary-date strong {
   color: #4f6068;
 }
 
-.team-name small,
-.summary-note,
 .summary-date small,
 .summary-row__counts span,
 .summary-volume small,
-.chart-subtitle,
 .chart-footer {
   color: #76868a;
 }
@@ -3491,10 +3425,6 @@ body {
 
   .cup-growth {
     grid-template-columns: 34px 1fr;
-  }
-
-  .cup-growth__next {
-    grid-column: 2;
   }
 
   .hydrate-overview {
