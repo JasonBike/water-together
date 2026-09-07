@@ -8,7 +8,7 @@ echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, Canvas
 
 type ActionType = 'fetch' | 'drink' | 'restroom'
 type Gender = 'female' | 'male' | 'secret'
-type CupCapacity = 250 | 350 | 500 | 750
+type CupCapacity = number
 
 type Member = {
   id: string
@@ -80,6 +80,9 @@ const GENDER_OPTIONS: Array<{ value: Gender; label: string; emoji: string }> = [
   { value: 'secret', label: '保密', emoji: '♡' },
 ]
 const DEFAULT_NOTE = '水要慢慢喝，\n喜欢要一直在。'
+const MIN_CUP_CAPACITY = 100
+const MAX_CUP_CAPACITY = 2000
+const CUP_STEP = 50
 
 const emptyData: AppData = {
   currentUser: null,
@@ -154,6 +157,11 @@ function cupLevel(fetchTotal: number) {
   if (fetchTotal >= 25) return { level: 3, name: '闪闪水手', emoji: '⭐', progress: ((fetchTotal - 25) / 25) * 100 }
   if (fetchTotal >= 10) return { level: 2, name: '小小水手', emoji: '🌱', progress: ((fetchTotal - 10) / 15) * 100 }
   return { level: 1, name: '新手水滴', emoji: '💧', progress: (fetchTotal / 10) * 100 }
+}
+
+function normalizeCupCapacity(value: number): CupCapacity {
+  if (!Number.isFinite(value)) return 350
+  return Math.min(MAX_CUP_CAPACITY, Math.max(MIN_CUP_CAPACITY, Math.round(value / CUP_STEP) * CUP_STEP))
 }
 
 function greeting() {
@@ -573,6 +581,30 @@ function LoginScreen({ onLogin, serverError = '', members = [] }: { onLogin: (pr
                     </button>
                   ))}
                 </div>
+                <div className="capacity-slider-row">
+                  <input
+                    type="range"
+                    min={MIN_CUP_CAPACITY}
+                    max={MAX_CUP_CAPACITY}
+                    step={CUP_STEP}
+                    value={cupCapacity}
+                    onChange={(event) => setCupCapacity(normalizeCupCapacity(Number(event.target.value)))}
+                    aria-label="调整水杯容量"
+                  />
+                  <label className="capacity-number-field">
+                    <input
+                      type="number"
+                      min={MIN_CUP_CAPACITY}
+                      max={MAX_CUP_CAPACITY}
+                      step={CUP_STEP}
+                      value={cupCapacity}
+                      onChange={(event) => setCupCapacity(normalizeCupCapacity(Number(event.target.value)))}
+                      aria-label="输入水杯容量"
+                    />
+                    <span>ml</span>
+                  </label>
+                </div>
+                <div className="capacity-range-note">可调范围 {MIN_CUP_CAPACITY}–{MAX_CUP_CAPACITY} ml</div>
               </div>
               <div className="login-setting-block login-setting-row">
                 <div className="login-setting-heading">
@@ -762,6 +794,8 @@ export default function App() {
   const [isEditingNote, setIsEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
   const [isGeneratingNote, setIsGeneratingNote] = useState(false)
+  const [showCapacityEditor, setShowCapacityEditor] = useState(false)
+  const [capacityDraft, setCapacityDraft] = useState<CupCapacity>(350)
 
   useEffect(() => {
     let active = true
@@ -1068,6 +1102,31 @@ export default function App() {
     }
   }
 
+  function openCapacityEditor() {
+    if (!canRecord || !currentUserMember) return
+    setCapacityDraft(currentUserMember.cupCapacity)
+    setShowCapacityEditor(true)
+  }
+
+  async function saveCapacity() {
+    if (!canRecord || !currentUserMember) return
+    try {
+      const savedMember = await apiRequest<Member>('/api/members', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...currentUserMember,
+          cupCapacity: normalizeCupCapacity(capacityDraft),
+          createdAt: Date.now(),
+        }),
+      })
+      setData((previous) => ({ ...previous, members: previous.members.map((member) => member.id === savedMember.id ? savedMember : member) }))
+      setShowCapacityEditor(false)
+      setRequestError('')
+    } catch {
+      setRequestError('水杯容量暂时没有保存成功，请稍后再试')
+    }
+  }
+
   async function undoLastAction() {
     if (!lastAction) return
     try {
@@ -1190,6 +1249,7 @@ export default function App() {
                       <small>接水目标 8 次</small>
                     </span>
                   </div>
+                  {canRecord && <button type="button" className="capacity-edit-button" onClick={openCapacityEditor}>调整</button>}
                   <button
                     className="reset-button reset-button--card"
                     onClick={resetDay}
@@ -1202,7 +1262,36 @@ export default function App() {
                   {!canRecord && <button className="nudge-button" onClick={sendNudge}><span>💌</span>提醒 TA</button>}
                   {canRecord && nudgeCount > 0 && <span className="nudge-count">收到 {nudgeCount} 次提醒</span>}
                 </div>
-              </div>
+                </div>
+                {showCapacityEditor && canRecord && (
+                  <div className="capacity-editor">
+                    <div className="capacity-editor__heading"><strong>调整我的水杯</strong><span>{capacityDraft} ml / 杯</span></div>
+                    <div className="capacity-slider-row">
+                      <input
+                        type="range"
+                        min={MIN_CUP_CAPACITY}
+                        max={MAX_CUP_CAPACITY}
+                        step={CUP_STEP}
+                        value={capacityDraft}
+                        onChange={(event) => setCapacityDraft(normalizeCupCapacity(Number(event.target.value)))}
+                        aria-label="调整当前水杯容量"
+                      />
+                      <label className="capacity-number-field">
+                        <input
+                          type="number"
+                          min={MIN_CUP_CAPACITY}
+                          max={MAX_CUP_CAPACITY}
+                          step={CUP_STEP}
+                          value={capacityDraft}
+                          onChange={(event) => setCapacityDraft(normalizeCupCapacity(Number(event.target.value)))}
+                          aria-label="输入当前水杯容量"
+                        />
+                        <span>ml</span>
+                      </label>
+                    </div>
+                    <div className="capacity-editor__actions"><button type="button" onClick={() => setShowCapacityEditor(false)}>取消</button><button type="button" onClick={saveCapacity}>保存容量</button></div>
+                  </div>
+                )}
 
               <div className="hydrate-overview">
                 <div className="progress-wrap">

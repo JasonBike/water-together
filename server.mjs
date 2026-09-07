@@ -170,8 +170,8 @@ function readBody(request) {
 }
 
 function validMemberPayload(payload) {
-  const capacities = [250, 350, 500, 750]
   const genders = ['female', 'male', 'secret']
+  const cupCapacity = Number(payload?.cupCapacity)
   return payload
     && typeof payload.name === 'string'
     && payload.name.trim().length > 0
@@ -179,7 +179,9 @@ function validMemberPayload(payload) {
     && typeof payload.emoji === 'string'
     && typeof payload.color === 'string'
     && genders.includes(payload.gender)
-    && capacities.includes(Number(payload.cupCapacity))
+    && Number.isInteger(cupCapacity)
+    && cupCapacity >= 100
+    && cupCapacity <= 2000
 }
 
 function validActionPayload(payload) {

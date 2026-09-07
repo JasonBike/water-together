@@ -1469,6 +1469,88 @@ input:focus-visible {
   transform: rotate(-7deg) translateY(-2px);
 }
 
+.capacity-edit-button {
+  height: 31px;
+  padding: 0 9px;
+  border: 1px dashed #b9dce3;
+  border-radius: 9px;
+  color: #5b98a9;
+  background: #f5fcfc;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  transition: .18s ease;
+}
+
+.capacity-edit-button:hover {
+  border-color: #82c5d8;
+  background: #e9f7f8;
+  transform: translateY(-1px);
+}
+
+.capacity-editor {
+  margin-top: 14px;
+  padding: 13px 15px 12px;
+  border: 1px dashed #cbe1dd;
+  border-radius: 14px;
+  background: #f8fcf8;
+  animation: editor-drop .2s ease-out;
+}
+
+@keyframes editor-drop {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.capacity-editor__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.capacity-editor__heading strong {
+  color: #69836e;
+  font-size: 12px;
+}
+
+.capacity-editor__heading span {
+  color: #678e95;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.capacity-editor .capacity-slider-row {
+  margin-top: 10px;
+}
+
+.capacity-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.capacity-editor__actions button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.capacity-editor__actions button:first-child {
+  border: 1px solid #dbe6df;
+  color: #7b8e83;
+  background: #fff;
+}
+
+.capacity-editor__actions button:last-child {
+  border: 1px solid #9cccad;
+  color: white;
+  background: #86ba91;
+}
+
 .capacity-display__copy {
   display: flex;
   min-width: 0;
@@ -3092,6 +3174,57 @@ input:focus-visible {
 
 .capacity-picker small {
   font-size: 11px;
+}
+
+.capacity-slider-row {
+  display: flex;
+  margin-top: 13px;
+  align-items: center;
+  gap: 10px;
+}
+
+.capacity-slider-row > input[type="range"] {
+  width: 100%;
+  height: 6px;
+  accent-color: #79bed5;
+  cursor: pointer;
+}
+
+.capacity-number-field {
+  display: flex;
+  width: 83px;
+  height: 35px;
+  align-items: center;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #cce4e8;
+  border-radius: 9px;
+  color: #5e9db0;
+  background: #f2fafb;
+}
+
+.capacity-number-field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.capacity-number-field span {
+  margin-left: 3px;
+  color: #7da9b1;
+  font-size: 9px;
+}
+
+.capacity-range-note {
+  margin-top: 6px;
+  color: #8d9fa2;
+  font-size: 9px;
 }
 
 .primary-button {
