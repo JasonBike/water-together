@@ -952,11 +952,10 @@ export default function App() {
       const fetch = actions.filter((item) => item.type === 'fetch').length
       const drink = actions.filter((item) => item.type === 'drink').length
       const restroom = actions.filter((item) => item.type === 'restroom').length
-      const preparedVolume = actions.reduce((total, item) => {
-        if (item.type === 'fetch') return total + (item.volume || selectedMember.cupCapacity)
-        if (item.type === 'drink' && item.volume) return total + item.volume
-        return total
-      }, 0)
+      const preparedVolume = actions.reduce(
+        (total, item) => item.type === 'fetch' ? total + (item.volume || selectedMember.cupCapacity) : total,
+        0,
+      )
       return {
         date,
         fetch,
