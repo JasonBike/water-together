@@ -175,6 +175,23 @@ function greeting() {
   return '晚上好'
 }
 
+function hydrationMood(fetchCount: number) {
+  if (fetchCount <= 0) return { emoji: '🫧', message: '小水滴在等你' }
+  if (fetchCount < 4) return { emoji: '🌱', message: '好习惯发芽啦' }
+  if (fetchCount < 8) return { emoji: '🐳', message: '水杯快装满啦' }
+  return { emoji: '🌈', message: '今日补水满格' }
+}
+
+function noteMilestoneKey(preparedCups: number, drinkCount: number) {
+  if (preparedCups >= 10) return 'together-100'
+  if (preparedCups >= 8) return 'prepared-8'
+  if (preparedCups >= 5) return 'together-50'
+  if (preparedCups >= 4) return 'prepared-4'
+  if (preparedCups >= 1) return 'prepared-1'
+  if (drinkCount >= 1) return 'drink-1'
+  return 'start'
+}
+
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? 'brand--compact' : ''}`} aria-label="咕噜日记">
@@ -209,7 +226,7 @@ function PlusIcon() {
   )
 }
 
-function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
+function WaterRhythmChart({ actions, date }: { actions: WaterAction[]; date: string }) {
   const chartRef = useRef<HTMLDivElement>(null)
   const chartHours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
   const fetchByHour = Array.from({ length: 24 }, () => 0)
@@ -281,7 +298,7 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
       },
       series: [
         {
-          name: '准备饮品',
+          name: '杯数',
           type: 'line',
           smooth: true,
           showSymbol: true,
@@ -293,7 +310,7 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
           areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(120, 191, 215, .25)' }, { offset: 1, color: 'rgba(120, 191, 215, .02)' }]) },
         },
         {
-          name: '喝水',
+          name: '喝水次数',
           type: 'line',
           smooth: true,
           showSymbol: true,
@@ -305,7 +322,7 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
           areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(225, 160, 164, .18)' }, { offset: 1, color: 'rgba(225, 160, 164, .02)' }]) },
         },
         {
-          name: '上厕所',
+          name: '上厕所次数',
           type: 'line',
           smooth: true,
           showSymbol: true,
@@ -334,13 +351,13 @@ function WaterRhythmChart({ actions }: { actions: WaterAction[] }) {
       <div className="card-heading card-heading--inline">
         <div>
           <span className="card-kicker"><span>⌁</span> DAILY RHYTHM</span>
-          <h2>今天的水站节奏</h2>
+          <h2>{date === localDateKey() ? '今天的水站节奏' : `${formatMonthDay(date)} 的水站节奏`}</h2>
         </div>
       </div>
-      <div className="chart-canvas" ref={chartRef} role="img" aria-label="当天准备饮品、喝水和上厕所次数的小时折线图" />
+      <div className="chart-canvas" ref={chartRef} role="img" aria-label={`${date === localDateKey() ? '当天' : formatMonthDay(date)}杯数、喝水次数和上厕所次数的小时折线图`} />
       <div className="chart-footer">
-        {peakHour >= 0 ? <span>今天最活跃的时段：<strong>{String(peakHour).padStart(2, '0')}:00 左右</strong></span> : <span>记录后会显示你的饮水高峰时段</span>}
-        <span>准备饮品 {fetchByHour.reduce((sum, count) => sum + count, 0)} 次 · 喝水 {drinkByHour.reduce((sum, count) => sum + count, 0)} 次 · 上厕所 {restroomByHour.reduce((sum, count) => sum + count, 0)} 次</span>
+        {peakHour >= 0 ? <span>{date === localDateKey() ? '今天' : '当天'}最活跃的时段：<strong>{String(peakHour).padStart(2, '0')}:00 左右</strong></span> : <span>记录后会显示你的饮水高峰时段</span>}
+        <span>杯数 {fetchByHour.reduce((sum, count) => sum + count, 0)} 杯 · 喝水次数 {drinkByHour.reduce((sum, count) => sum + count, 0)} 次 · 上厕所次数 {restroomByHour.reduce((sum, count) => sum + count, 0)} 次</span>
       </div>
     </section>
   )
@@ -891,6 +908,10 @@ export default function App() {
   const [isGeneratingNote, setIsGeneratingNote] = useState(false)
   const [showCapacityEditor, setShowCapacityEditor] = useState(false)
   const [showDrinkPicker, setShowDrinkPicker] = useState(false)
+  const noteMilestoneRef = useRef<{ date: string; key: string } | null>(null)
+  const noteRefreshTimerRef = useRef<number | null>(null)
+  const noteGenerationRef = useRef(false)
+  const noteManualLockRef = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -925,6 +946,10 @@ export default function App() {
   useEffect(() => {
     setIsEditingNote(false)
     setNoteDraft('')
+    setShowCapacityEditor(false)
+    setShowDrinkPicker(false)
+    setShowResetConfirm(false)
+    setLastAction(null)
   }, [selectedDate])
 
   const dayActions = useMemo(
@@ -935,7 +960,9 @@ export default function App() {
     ?? data.members.find((member) => member.name === data.currentUser)
     ?? data.members[0]
   const currentUserMember = data.members.find((member) => member.name === data.currentUser) ?? selectedMember
-  const canRecord = selectedMember?.id === currentUserMember?.id
+  const isToday = selectedDate === localDateKey()
+  const isOwnView = selectedMember?.id === currentUserMember?.id
+  const canRecord = isOwnView && isToday
   const selectedActions = selectedMember
     ? dayActions.filter((item) => item.memberId === selectedMember.id)
     : []
@@ -943,7 +970,6 @@ export default function App() {
   const drinkCount = selectedMember ? countOf(dayActions, selectedMember.id, 'drink') : 0
   const restroomCount = selectedMember ? countOf(dayActions, selectedMember.id, 'restroom') : 0
   const progress = Math.min(100, Math.round((fetchCount / 8) * 100))
-  const isToday = selectedDate === localDateKey()
   const summaryRows = useMemo(() => {
     if (!selectedMember) return []
     return Array.from({ length: 7 }, (_, index) => {
@@ -975,6 +1001,7 @@ export default function App() {
   const coupleDrinkCount = data.actions.filter((item) => item.date === selectedDate && item.type === 'drink').length
   const coupleTarget = 10
   const coupleProgress = Math.min(100, Math.round((coupleFetchCount / coupleTarget) * 100))
+  const mood = hydrationMood(fetchCount)
   const nudgeCount = selectedMember ? data.nudges.filter((nudge) => nudge.toMemberId === selectedMember.id).length : 0
   const currentNote = data.notes.find((note) => note.date === selectedDate)
   const noteContent = currentNote?.content || DEFAULT_NOTE
@@ -984,22 +1011,69 @@ export default function App() {
     : false
 
   useEffect(() => {
-    if (!data.currentUser || !isToday || currentNote || isGeneratingNote) return
+    if (!data.currentUser || !isToday || currentNote || isGeneratingNote || noteGenerationRef.current) return
     let active = true
+    const requestedMilestoneKey = noteMilestoneKey(coupleFetchCount, coupleDrinkCount)
+    noteGenerationRef.current = true
     setIsGeneratingNote(true)
     apiRequest<DailyNote>('/api/notes/generate', {
       method: 'POST',
       body: JSON.stringify({ date: selectedDate }),
     }).then((generatedNote) => {
       if (!active) return
+      noteMilestoneRef.current = { date: selectedDate, key: requestedMilestoneKey }
       setData((previous) => ({ ...previous, notes: [...previous.notes, generatedNote] }))
     }).catch(() => {
       if (active) setRequestError('小纸条暂时没有生成成功，请稍后重试')
     }).finally(() => {
+      noteGenerationRef.current = false
       if (active) setIsGeneratingNote(false)
     })
     return () => { active = false }
-  }, [currentNote, data.currentUser, isGeneratingNote, isToday, selectedDate])
+  }, [coupleDrinkCount, coupleFetchCount, currentNote, data.currentUser, isGeneratingNote, isToday, selectedDate])
+
+  useEffect(() => {
+    if (!data.currentUser || !isToday || !currentNote || isGeneratingNote || noteGenerationRef.current || noteManualLockRef.current === selectedDate) return
+    const nextKey = noteMilestoneKey(coupleFetchCount, coupleDrinkCount)
+    const previous = noteMilestoneRef.current
+    if (!previous || previous.date !== selectedDate) {
+      noteMilestoneRef.current = { date: selectedDate, key: nextKey }
+      return
+    }
+    if (previous.key === nextKey) return
+    noteMilestoneRef.current = { date: selectedDate, key: nextKey }
+    if (noteRefreshTimerRef.current) window.clearTimeout(noteRefreshTimerRef.current)
+    noteRefreshTimerRef.current = window.setTimeout(() => {
+      noteRefreshTimerRef.current = null
+      if (noteGenerationRef.current) return
+      noteGenerationRef.current = true
+      setIsGeneratingNote(true)
+      apiRequest<DailyNote>('/api/notes/generate', {
+        method: 'POST',
+        body: JSON.stringify({ date: selectedDate }),
+      }).then((generatedNote) => {
+        setData((previousData) => ({
+          ...previousData,
+          notes: previousData.notes.some((note) => note.date === selectedDate)
+            ? previousData.notes.map((note) => note.date === selectedDate ? generatedNote : note)
+            : [...previousData.notes, generatedNote],
+        }))
+        setRequestError('')
+      }).catch(() => {
+        setRequestError('小纸条暂时没有生成成功，请稍后重试')
+      }).finally(() => {
+        noteGenerationRef.current = false
+        setIsGeneratingNote(false)
+      })
+    }, 1_200)
+  }, [coupleDrinkCount, coupleFetchCount, currentNote, data.currentUser, isGeneratingNote, isToday, selectedDate])
+
+  useEffect(() => () => {
+    if (noteRefreshTimerRef.current) {
+      window.clearTimeout(noteRefreshTimerRef.current)
+      noteRefreshTimerRef.current = null
+    }
+  }, [selectedDate])
 
   async function login(profile: LoginProfile) {
     try {
@@ -1082,7 +1156,7 @@ export default function App() {
   }
 
   function record(type: ActionType, drinkKind?: DrinkKind, volume?: number) {
-    if (!selectedMember || !canRecord) return
+    if (!selectedMember || !canRecord || selectedDate !== localDateKey()) return
     const now = new Date()
     const action: WaterAction = {
       id: uid('action'),
@@ -1129,7 +1203,7 @@ export default function App() {
   }
 
   async function sendNudge() {
-    if (canRecord || !selectedMember || !currentUserMember) return
+    if (isOwnView || !isToday || !selectedMember || !currentUserMember) return
     const now = new Date()
     const nudge: Nudge = {
       id: uid('nudge'),
@@ -1154,13 +1228,14 @@ export default function App() {
   }
 
   function startNoteEdit() {
+    if (!isToday) return
     setNoteDraft(noteContent)
     setIsEditingNote(true)
   }
 
   async function saveNote() {
     const content = noteDraft.trim()
-    if (!content) return
+    if (!content || !isToday || selectedDate !== localDateKey()) return
     try {
       const savedNote = await apiRequest<DailyNote>('/api/notes', {
         method: 'POST',
@@ -1172,6 +1247,7 @@ export default function App() {
           ? previous.notes.map((note) => note.date === selectedDate ? savedNote : note)
           : [...previous.notes, savedNote],
       }))
+      noteManualLockRef.current = selectedDate
       setIsEditingNote(false)
       setRequestError('')
     } catch {
@@ -1180,7 +1256,15 @@ export default function App() {
   }
 
   async function generateNote() {
-    if (isGeneratingNote) return
+    if (!isToday || selectedDate !== localDateKey() || isGeneratingNote || noteGenerationRef.current) return
+    if (noteRefreshTimerRef.current) {
+      window.clearTimeout(noteRefreshTimerRef.current)
+      noteRefreshTimerRef.current = null
+    }
+    const requestedMilestoneKey = noteMilestoneKey(coupleFetchCount, coupleDrinkCount)
+    const wasManualLocked = noteManualLockRef.current === selectedDate
+    noteManualLockRef.current = null
+    noteGenerationRef.current = true
     setIsGeneratingNote(true)
     try {
       const generatedNote = await apiRequest<DailyNote>('/api/notes/generate', {
@@ -1193,17 +1277,20 @@ export default function App() {
           ? previous.notes.map((note) => note.date === selectedDate ? generatedNote : note)
           : [...previous.notes, generatedNote],
       }))
+      if (selectedDate === localDateKey()) noteMilestoneRef.current = { date: selectedDate, key: requestedMilestoneKey }
       setIsEditingNote(false)
       setRequestError('')
     } catch {
+      if (wasManualLocked) noteManualLockRef.current = selectedDate
       setRequestError('小纸条暂时没有生成成功，请稍后重试')
     } finally {
+      noteGenerationRef.current = false
       setIsGeneratingNote(false)
     }
   }
 
   async function toggleNoteLike() {
-    if (!currentUserMember) return
+    if (!currentUserMember || !isToday || selectedDate !== localDateKey()) return
     try {
       const result = await apiRequest<{ note: DailyNote; liked: boolean }>(`/api/notes/${encodeURIComponent(selectedDate)}/like`, {
         method: 'POST',
@@ -1244,7 +1331,7 @@ export default function App() {
   }
 
   async function undoLastAction() {
-    if (!lastAction) return
+    if (!lastAction || lastAction.date !== localDateKey()) return
     try {
       await apiRequest<void>(`/api/actions/${encodeURIComponent(lastAction.id)}`, { method: 'DELETE' })
       setData((previous) => ({
@@ -1259,12 +1346,12 @@ export default function App() {
   }
 
   function resetDay() {
-    if (!canRecord || !selectedActions.length) return
+    if (!canRecord || !selectedActions.length || selectedDate !== localDateKey()) return
     setShowResetConfirm(true)
   }
 
   async function confirmResetDay() {
-    if (!selectedMember) return
+    if (!selectedMember || !canRecord || selectedDate !== localDateKey()) return
     const memberId = selectedMember.id
     try {
       await apiRequest<void>(`/api/actions?memberId=${encodeURIComponent(memberId)}&date=${encodeURIComponent(selectedDate)}`, { method: 'DELETE' })
@@ -1354,8 +1441,8 @@ export default function App() {
             <section className="hydrate-card">
               <div className="card-heading">
                 <div>
-                  <span className="card-kicker"><span>✦</span> {selectedMember.name} 的今日水站</span>
-                  <h2>今天准备了几杯？</h2>
+                  <span className="card-kicker"><span>✦</span> {selectedMember.name} 的{isToday ? '今日水站' : `${formatMonthDay(selectedDate)} 水站`}</span>
+                  <h2>{isToday ? '今天的喝水记录' : '历史记录（仅查看）'}</h2>
                 </div>
                 <div className="hydrate-card__tools">
                   <div
@@ -1376,13 +1463,14 @@ export default function App() {
                     className="reset-button reset-button--card"
                     onClick={resetDay}
                     disabled={!canRecord || !selectedActions.length}
-                    title={!canRecord ? '只能重置当前登录账号的记录' : '清空当前日期自己的记录'}
+                    title={!isToday ? '历史数据仅供查看' : !isOwnView ? '只能重置当前登录账号的记录' : '清空今天自己的记录'}
                   >
                     重置本日
                   </button>
-                  {!canRecord && <span className="readonly-badge">只读</span>}
-                  {!canRecord && <button className="nudge-button" onClick={sendNudge}><span>💌</span>提醒 TA</button>}
-                  {canRecord && nudgeCount > 0 && <span className="nudge-count">收到 {nudgeCount} 次提醒</span>}
+                  {!isToday && <span className="readonly-badge">历史只读</span>}
+                  {isToday && !isOwnView && <span className="readonly-badge">只读</span>}
+                  {isToday && !isOwnView && <button className="nudge-button" onClick={sendNudge}><span>💌</span>提醒 TA</button>}
+                  {isOwnView && nudgeCount > 0 && <span className="nudge-count">收到 {nudgeCount} 次提醒</span>}
                 </div>
                 </div>
               <div className="hydrate-overview">
@@ -1393,40 +1481,44 @@ export default function App() {
                   >
                     <div className="progress-ring__inside">
                       <span className="progress-drop">💧</span>
-                      <strong>{fetchCount}<small>/ 8</small></strong>
-                      <span>准备杯数</span>
+                      <strong>{fetchCount}</strong>
+                      <span className="progress-mood" aria-live="polite"><span aria-hidden="true">{mood.emoji}</span> {mood.message}</span>
+                      <span>杯数</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="action-zone">
                   <div className="action-grid">
-                    <button className={`water-action water-action--fetch ${actionBurst?.type === 'fetch' ? 'water-action--burst' : ''}`} onClick={() => setShowDrinkPicker(true)} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                    <button className={`water-action water-action--fetch ${actionBurst?.type === 'fetch' ? 'water-action--burst' : ''}`} onClick={() => setShowDrinkPicker(true)} disabled={!canRecord} title={!isToday ? '历史数据仅供查看' : !isOwnView ? '只能记录当前登录账号' : undefined}>
                       <span className="water-action__icon"><span>＋</span>🥤</span>
                       <span className="water-action__copy">
-                        <strong>准备一杯</strong>
+                        <small>准备一杯饮品</small>
+                        <strong>杯数</strong>
                       </span>
-                      <span className="water-action__count">{fetchCount}<small> 次</small></span>
+                      <span className="water-action__count">{fetchCount}<small> 杯</small></span>
                       {actionBurst?.type === 'fetch' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>✦</i><i>💧</i><i>·</i></span>}
                     </button>
-                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => record('drink')} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                    <button className={`water-action water-action--drink ${actionBurst?.type === 'drink' ? 'water-action--burst' : ''}`} onClick={() => record('drink')} disabled={!canRecord} title={!isToday ? '历史数据仅供查看' : !isOwnView ? '只能记录当前登录账号' : undefined}>
                       <span className="water-action__icon"><span>＋</span>🥛</span>
                       <span className="water-action__copy">
-                        <strong>喝水啦</strong>
+                        <small>每喝一次点一下</small>
+                        <strong>喝水次数</strong>
                       </span>
                       <span className="water-action__count">{drinkCount}<small> 次</small></span>
                       {actionBurst?.type === 'drink' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>♡</i><i>✦</i><i>·</i></span>}
                     </button>
-                    <button className={`water-action water-action--restroom ${actionBurst?.type === 'restroom' ? 'water-action--burst' : ''}`} onClick={() => record('restroom')} disabled={!canRecord} title={!canRecord ? '只能记录当前登录账号' : undefined}>
+                    <button className={`water-action water-action--restroom ${actionBurst?.type === 'restroom' ? 'water-action--burst' : ''}`} onClick={() => record('restroom')} disabled={!canRecord} title={!isToday ? '历史数据仅供查看' : !isOwnView ? '只能记录当前登录账号' : undefined}>
                       <span className="water-action__icon"><span>＋</span>🚻</span>
                       <span className="water-action__copy">
-                        <strong>上厕所啦</strong>
+                        <small>每去一次点一下</small>
+                        <strong>上厕所次数</strong>
                       </span>
                       <span className="water-action__count">{restroomCount}<small> 次</small></span>
                       {actionBurst?.type === 'restroom' && <span className="water-action__particles" key={actionBurst.id} aria-hidden="true"><i>✦</i><i>◌</i><i>·</i></span>}
                     </button>
                   </div>
-                  <div className="cup-trail" aria-label={`今日准备进度 ${fetchCount}/8`}>
+                  <div className="cup-trail" aria-label={`${isToday ? '今日' : formatMonthDay(selectedDate)}杯数 ${fetchCount}/8`}>
                     {Array.from({ length: 8 }).map((_, index) => (
                       <span key={index} className={index < fetchCount ? 'is-full' : ''}>
                         {index < fetchCount ? '●' : '○'}
@@ -1437,7 +1529,7 @@ export default function App() {
               </div>
               <div className="pair-progress">
                 <div className="pair-progress__top">
-                  <span><span className="pair-progress__heart">♡</span> 我们今天一起接了</span>
+                  <span><span className="pair-progress__heart">♡</span> {isToday ? '我们今天的杯数' : `${formatMonthDay(selectedDate)} 的杯数`}</span>
                   <strong>{coupleFetchCount}<small> / {coupleTarget} 杯</small></strong>
                 </div>
                 <div className="pair-progress__bar"><span style={{ width: `${coupleProgress}%` }} /></div>
@@ -1458,7 +1550,7 @@ export default function App() {
               </div>
             </section>
 
-            <WaterRhythmChart actions={selectedActions} />
+            <WaterRhythmChart actions={selectedActions} date={selectedDate} />
 
           </div>
 
@@ -1471,8 +1563,8 @@ export default function App() {
                 <div className="note-heading">
                   <p>{isToday ? '今日小纸条' : `${formatMonthDay(selectedDate)} 小纸条`}</p>
                   <div className="note-heading__actions">
-                    <button type="button" className="note-generate-button" onClick={generateNote} disabled={isGeneratingNote}>{isGeneratingNote ? '生成中…' : '✦ 换一句'}</button>
-                    <button type="button" className="note-edit-button" onClick={startNoteEdit}>✎ 编辑</button>
+                    <button type="button" className="note-generate-button" onClick={generateNote} disabled={!isToday || isGeneratingNote} title={!isToday ? '历史数据仅供查看' : '关键进度会自动更新，也可以手动换一句'}>{isGeneratingNote ? '生成中…' : '✦ 换一句'}</button>
+                    <button type="button" className="note-edit-button" onClick={startNoteEdit} disabled={!isToday} title={!isToday ? '历史数据仅供查看' : undefined}>✎ 编辑</button>
                   </div>
                 </div>
                 {isEditingNote ? (
@@ -1484,13 +1576,13 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <blockquote>“{noteContent}”</blockquote>
+                  <blockquote aria-live="polite">“{noteContent}”</blockquote>
                 )}
                 <div className="note-footer">
                   <span className="mini-avatars">
                     {data.members.slice(0, 3).map((member) => <i key={member.id} style={{ background: member.color }}>{member.emoji}</i>)}
                   </span>
-                  <button type="button" className={`note-like-button ${noteLiked ? 'is-liked' : ''}`} onClick={toggleNoteLike} aria-pressed={noteLiked}>
+                  <button type="button" className={`note-like-button ${noteLiked ? 'is-liked' : ''}`} onClick={toggleNoteLike} aria-pressed={noteLiked} disabled={!isToday} title={!isToday ? '历史数据仅供查看' : undefined}>
                     <span>{noteLiked ? '♥' : '♡'}</span> {noteLikeCount}
                   </button>
                 </div>
@@ -1541,12 +1633,12 @@ export default function App() {
                 <span className="member-total summary-member">{selectedMember.name}</span>
               </div>
               <div className="summary-total">
-                <div><strong>{summaryFetchTotal}</strong><span>准备杯数</span></div>
+                <div><strong>{summaryFetchTotal}</strong><span>杯数</span></div>
                 <div><strong>{summaryVolumeTotal}<small> ml</small></strong><span>估算饮水量</span></div>
                 <div><strong>{summaryRestroomTotal}</strong><span>上厕所次数</span></div>
               </div>
               <div className="summary-streak"><span>🌿</span> 过去 7 天有 <strong>{recordDays} 天</strong> 记得来小水站</div>
-              <div className="summary-heatmap" aria-label="近七日准备杯数热力图">
+              <div className="summary-heatmap" aria-label="近七日杯数热力图">
                 {summaryRows.map((row) => {
                   const intensity = Math.min(4, row.fetch)
                   return (
@@ -1599,7 +1691,7 @@ export default function App() {
       {lastAction && (
         <div className="toast" key={lastAction.id} role="status">
           <span>{lastAction.type === 'fetch' ? '🚰' : lastAction.type === 'drink' ? '💧' : '🚻'}</span>
-          <div><strong>记好啦！</strong><small>{lastAction.type === 'fetch' ? '接水次数 +1' : lastAction.type === 'drink' ? '喝水次数 +1' : '上厕所次数 +1'}</small></div>
+          <div><strong>记好啦！</strong><small>{lastAction.type === 'fetch' ? '杯数 +1' : lastAction.type === 'drink' ? '喝水次数 +1' : '上厕所次数 +1'}</small></div>
           <button onClick={undoLastAction}>撤销</button>
           <button className="toast-close" aria-label="关闭提示" onClick={() => setLastAction(null)}>×</button>
         </div>

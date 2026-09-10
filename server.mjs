@@ -124,6 +124,15 @@ const selectNoteLikeRows = db.prepare('SELECT date, member_id AS memberId FROM n
 const selectNote = db.prepare('SELECT date, content, updated_at AS updatedAt FROM daily_notes WHERE date = ?')
 const selectNoteLikesCount = db.prepare('SELECT COUNT(*) AS likes FROM note_likes WHERE date = ?')
 const selectNoteLike = db.prepare('SELECT date, member_id AS memberId FROM note_likes WHERE date = ? AND member_id = ?')
+const selectNoteContextActions = db.prepare(`
+  SELECT
+    COALESCE(SUM(CASE WHEN type = 'fetch' THEN 1 ELSE 0 END), 0) AS preparedCups,
+    COALESCE(SUM(CASE WHEN type = 'drink' THEN 1 ELSE 0 END), 0) AS drinkCount,
+    COALESCE(SUM(CASE WHEN type = 'restroom' THEN 1 ELSE 0 END), 0) AS restroomCount
+  FROM actions
+  WHERE date = ?
+`)
+const selectMemberCount = db.prepare('SELECT COUNT(*) AS memberCount FROM members')
 const upsertNote = db.prepare(`
   INSERT INTO daily_notes (date, content, updated_at)
   VALUES (?, ?, ?)
@@ -214,6 +223,26 @@ function validDate(value) {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
+const shanghaiDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+function currentDateKey() {
+  const parts = Object.fromEntries(
+    shanghaiDateFormatter.formatToParts(new Date()).map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+function rejectHistoricalWrite(response, date) {
+  if (date === currentDateKey()) return false
+  sendJson(response, 403, { error: 'only current-day data can be modified' })
+  return true
+}
+
 function noteView(date) {
   const note = selectNote.get(date)
   if (!note) return { date, content: '', likes: 0, updatedAt: null }
@@ -225,9 +254,22 @@ function defaultNoteForDate(date) {
   return noteDefaults[Math.abs(dayNumber) % noteDefaults.length]
 }
 
-async function generateNoteContent(date) {
+function noteContextForDate(date) {
+  const counts = selectNoteContextActions.get(date)
+  const preparedCups = Number(counts?.preparedCups || 0)
+  return {
+    preparedCups,
+    drinkCount: Number(counts?.drinkCount || 0),
+    restroomCount: Number(counts?.restroomCount || 0),
+    memberCount: Number(selectMemberCount.get()?.memberCount || 0),
+    progress: Math.min(100, Math.round((preparedCups / 10) * 100)),
+  }
+}
+
+async function generateNoteContent(date, context = noteContextForDate(date)) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 8_000)
+  const contextMessage = `当天是 ${context.memberCount} 人的小水站，共准备 ${context.preparedCups} 杯，喝水 ${context.drinkCount} 次，上厕所 ${context.restroomCount} 次，共同进度 ${context.progress}%。`
   try {
     const response = await fetch(noteModelEndpoint, {
       method: 'POST',
@@ -240,8 +282,8 @@ async function generateNoteContent(date) {
         temperature: 0.9,
         max_tokens: 80,
         messages: [
-          { role: 'system', content: '你是情侣饮水小站的每日小纸条助手。只输出一句简短、可爱、温柔的中文话术，不超过30个汉字，不要引号，不要解释。' },
-          { role: 'user', content: `请为 ${date} 写一句提醒喝水、好好生活的小纸条。` },
+          { role: 'system', content: '你是情侣饮水小站的每日小纸条助手。根据当天统计写一句简短、可爱、温柔的中文话术，不超过30个汉字。只挑一个最值得回应的状态，不要机械罗列数字，不要编造事实，不要引号，不要解释。' },
+          { role: 'user', content: `日期：${date}。${contextMessage}请写一句贴合今天状态、提醒喝水和好好生活的小纸条。` },
         ],
       }),
     })
@@ -313,6 +355,7 @@ async function handleApi(request, response, url) {
       sendJson(response, 400, { error: 'invalid action payload' })
       return
     }
+    if (rejectHistoricalWrite(response, payload.date)) return
     insertAction.run(payload.id, payload.memberId, payload.type, payload.date, payload.time, payload.createdAt, payload.drinkKind || null, payload.volume ? Number(payload.volume) : null)
     sendJson(response, 201, selectAction.get(payload.id))
     return
@@ -334,6 +377,7 @@ async function handleApi(request, response, url) {
       sendJson(response, 400, { error: 'invalid nudge payload' })
       return
     }
+    if (rejectHistoricalWrite(response, payload.date)) return
     insertNudge.run(payload.id, payload.fromMemberId, payload.toMemberId, payload.date, payload.time, payload.createdAt)
     sendJson(response, 201, selectNudge.get(payload.id))
     return
@@ -346,6 +390,7 @@ async function handleApi(request, response, url) {
       return
     }
     const date = payload.date
+    if (rejectHistoricalWrite(response, date)) return
     upsertNote.run(date, payload.content.trim(), Date.now())
     sendJson(response, 200, noteView(date))
     return
@@ -357,7 +402,9 @@ async function handleApi(request, response, url) {
       sendJson(response, 400, { error: 'invalid note date' })
       return
     }
+    if (rejectHistoricalWrite(response, payload.date)) return
     const content = await generateNoteContent(payload.date)
+    if (rejectHistoricalWrite(response, payload.date)) return
     upsertNote.run(payload.date, content, Date.now())
     sendJson(response, 200, noteView(payload.date))
     return
@@ -371,6 +418,7 @@ async function handleApi(request, response, url) {
       sendJson(response, 400, { error: 'invalid note like payload' })
       return
     }
+    if (rejectHistoricalWrite(response, date)) return
     if (!selectNote.get(date)) upsertNote.run(date, '', Date.now())
     const existingLike = selectNoteLike.get(date, payload.memberId)
     if (existingLike) deleteNoteLike.run(date, payload.memberId)
@@ -381,7 +429,10 @@ async function handleApi(request, response, url) {
 
   const actionMatch = url.pathname.match(/^\/api\/actions\/([^/]+)$/)
   if (request.method === 'DELETE' && actionMatch) {
-    deleteAction.run(decodeURIComponent(actionMatch[1]))
+    const actionId = decodeURIComponent(actionMatch[1])
+    const action = selectAction.get(actionId)
+    if (action && rejectHistoricalWrite(response, action.date)) return
+    deleteAction.run(actionId)
     sendEmpty(response)
     return
   }
@@ -389,10 +440,11 @@ async function handleApi(request, response, url) {
   if (request.method === 'DELETE' && url.pathname === '/api/actions') {
     const memberId = url.searchParams.get('memberId')
     const date = url.searchParams.get('date')
-    if (!memberId || !date) {
+    if (!memberId || !validDate(date)) {
       sendJson(response, 400, { error: 'memberId and date are required' })
       return
     }
+    if (rejectHistoricalWrite(response, date)) return
     deleteDateActions.run(memberId, date)
     sendEmpty(response)
     return

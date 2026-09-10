@@ -1383,6 +1383,27 @@ input:focus-visible {
   content: "";
 }
 
+.hydrate-card::before {
+  position: absolute;
+  top: 24px;
+  right: 185px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 26% 35%, rgba(255,255,255,.75) 0 4px, transparent 5px),
+    radial-gradient(circle at 73% 67%, rgba(255,255,255,.5) 0 7px, transparent 8px),
+    radial-gradient(circle, rgba(203, 237, 243, .4), rgba(203, 237, 243, 0) 68%);
+  content: "";
+  pointer-events: none;
+  animation: bubble-drift 8s ease-in-out infinite;
+}
+
+@keyframes bubble-drift {
+  0%, 100% { opacity: .55; transform: translate3d(0, 0, 0) rotate(-5deg); }
+  50% { opacity: .85; transform: translate3d(7px, -7px, 0) rotate(6deg); }
+}
+
 .chart-card {
   padding: 26px 30px 20px;
   border: 1px solid rgba(232, 226, 216, .95);
@@ -1675,6 +1696,30 @@ input:focus-visible {
   margin-top: 8px;
   color: #99a3a5;
   font-size: 9px;
+}
+
+.progress-mood {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 8px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #71949c;
+  background: #edf8f8;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  animation: mood-bob 3.8s ease-in-out infinite;
+}
+
+.progress-mood > span {
+  font-size: 12px;
+}
+
+@keyframes mood-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
 
 .action-zone {
@@ -2462,7 +2507,7 @@ input:focus-visible {
   transition: .18s ease;
 }
 
-.note-edit-button:hover {
+.note-edit-button:hover:not(:disabled) {
   border-color: #d59c99;
   background: #fff;
   transform: rotate(-2deg);
@@ -2487,8 +2532,14 @@ input:focus-visible {
 }
 
 .note-generate-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: .6;
+}
+
+.note-edit-button:disabled,
+.note-like-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
 }
 
 .note-editor {
@@ -2607,7 +2658,7 @@ input:focus-visible {
   line-height: 1;
 }
 
-.note-like-button:hover,
+.note-like-button:hover:not(:disabled),
 .note-like-button.is-liked {
   border-color: #e5a3a7;
   color: #a8676f;
