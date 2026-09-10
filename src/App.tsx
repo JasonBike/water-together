@@ -59,6 +59,29 @@ type NoteLike = {
   memberId: string
 }
 
+type WeeklyAnalysisContent = {
+  headline: string
+  riskLevel: '低风险' | '需关注' | '明显异动' | '数据不足'
+  confidence: '低' | '中' | '高'
+  todayAssessment: string
+  trendAssessment: string
+  anomalies: string[]
+  healthPossibilities: string[]
+  actions: string[]
+  missingInformation: string[]
+  warningSigns: string[]
+  dataBoundary: string
+}
+
+type WeeklyAnalysisReport = {
+  date: string
+  memberId: string
+  analysis: WeeklyAnalysisContent
+  analysisVersion: number
+  updatedAt: number
+  stale: boolean
+}
+
 type AppData = {
   currentUser: string | null
   members: Member[]
@@ -882,6 +905,97 @@ function DeleteAccountModal({ member, onClose, onConfirm }: DeleteAccountModalPr
   )
 }
 
+type WeeklyAnalysisCardProps = {
+  report: WeeklyAnalysisReport | null
+  loading: boolean
+  generating: boolean
+  canGenerate: boolean
+  isToday: boolean
+  memberName: string
+  onGenerate: () => void
+}
+
+function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday, memberName, onGenerate }: WeeklyAnalysisCardProps) {
+  const analysis = report?.analysis
+  const updatedAt = report
+    ? new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(report.updatedAt))
+    : ''
+
+  return (
+    <section className="weekly-analysis-card" aria-labelledby="weekly-analysis-title">
+      <div className="weekly-analysis-heading">
+        <div>
+          <span className="card-kicker"><span>✚</span> PERSONAL HEALTH REVIEW</span>
+          <h2 id="weekly-analysis-title">近 7 日健康分析</h2>
+          <p>{memberName} 的个人记录 · 最近 7 天与前 7 天对照</p>
+        </div>
+        <button type="button" onClick={onGenerate} disabled={!canGenerate || generating} title={!canGenerate ? '只能由本人生成当天分析' : undefined}>
+          {generating ? '分析中…' : report ? '重新分析' : '开始分析'}
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="weekly-analysis-empty" role="status">正在读取分析…</div>
+      ) : !analysis ? (
+        <div className="weekly-analysis-empty">
+          <span>🩺</span>
+          <div>
+            <strong>{isToday && canGenerate ? '还没有今天的个人分析' : '这个日期还没有保存分析'}</strong>
+            <p>{isToday && canGenerate ? '将结合 14 天记录，判断今天是否偏离近期节奏。' : '历史日期与其他成员页面只读，不能补生成。'}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="weekly-analysis-content" aria-live="polite">
+          {report?.stale && <div className="weekly-analysis-stale">记录已经变化，这份分析需要刷新。</div>}
+          <div className="weekly-analysis-verdict">
+            <span className={`weekly-risk weekly-risk--${analysis.riskLevel === '低风险' ? 'low' : analysis.riskLevel === '数据不足' ? 'unknown' : 'watch'}`}>{analysis.riskLevel}</span>
+            <div>
+              <h3>{analysis.headline}</h3>
+              <small>判断置信度：{analysis.confidence} · 更新于 {updatedAt}</small>
+            </div>
+          </div>
+
+          <div className="weekly-analysis-summary-grid">
+            <article>
+              <span>01</span>
+              <div><h3>今天是否偏离近期</h3><p>{analysis.todayAssessment}</p></div>
+            </article>
+            <article>
+              <span>02</span>
+              <div><h3>近 7 日趋势</h3><p>{analysis.trendAssessment}</p></div>
+            </article>
+          </div>
+
+          <div className="weekly-analysis-detail-grid">
+            <article>
+              <h3><span>⌁</span> 异动观察</h3>
+              <ul>{analysis.anomalies.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+            </article>
+            <article>
+              <h3><span>⚕</span> 医学相关可能性</h3>
+              <ul>{analysis.healthPossibilities.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+            </article>
+            <article>
+              <h3><span>✓</span> 建议行动</h3>
+              <ul>{analysis.actions.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+            </article>
+            <article>
+              <h3><span>!</span> 就医警示</h3>
+              <ul>{analysis.warningSigns.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+            </article>
+          </div>
+
+          <details className="weekly-analysis-missing">
+            <summary>影响判断准确度的缺失信息</summary>
+            <p>{analysis.missingInformation.join('、')}</p>
+          </details>
+          <p className="weekly-analysis-boundary">{analysis.dataBoundary}</p>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function AppLoading() {
   return (
     <main className="app-loading">
@@ -908,10 +1022,16 @@ export default function App() {
   const [isGeneratingNote, setIsGeneratingNote] = useState(false)
   const [showCapacityEditor, setShowCapacityEditor] = useState(false)
   const [showDrinkPicker, setShowDrinkPicker] = useState(false)
+  const [weeklyAnalysisReport, setWeeklyAnalysisReport] = useState<WeeklyAnalysisReport | null>(null)
+  const [isLoadingWeeklyAnalysis, setIsLoadingWeeklyAnalysis] = useState(false)
+  const [isGeneratingWeeklyAnalysis, setIsGeneratingWeeklyAnalysis] = useState(false)
   const noteMilestoneRef = useRef<{ date: string; key: string } | null>(null)
   const noteRefreshTimerRef = useRef<number | null>(null)
   const noteGenerationRef = useRef(false)
   const noteManualLockRef = useRef<string | null>(null)
+  const weeklyAnalysisGenerationRef = useRef(false)
+  const weeklyAnalysisViewKeyRef = useRef('')
+  const weeklyAnalysisAutoAttemptKeyRef = useRef('')
 
   useEffect(() => {
     let active = true
@@ -1009,6 +1129,39 @@ export default function App() {
   const noteLiked = currentUserMember
     ? data.noteLikes.some((like) => like.date === selectedDate && like.memberId === currentUserMember.id)
     : false
+  weeklyAnalysisViewKeyRef.current = `${selectedDate}:${selectedMember?.id || ''}`
+
+  useEffect(() => {
+    if (!data.currentUser || !selectedMember) return
+    let active = true
+    setIsLoadingWeeklyAnalysis(true)
+    setWeeklyAnalysisReport(null)
+    apiRequest<WeeklyAnalysisReport | null>(`/api/weekly-analysis?date=${encodeURIComponent(selectedDate)}&memberId=${encodeURIComponent(selectedMember.id)}`)
+      .then((report) => {
+        if (active) setWeeklyAnalysisReport(report)
+      })
+      .catch(() => {
+        if (active) setRequestError('近 7 日分析暂时没有读取成功，请稍后再试')
+      })
+      .finally(() => {
+        if (active) setIsLoadingWeeklyAnalysis(false)
+      })
+    return () => { active = false }
+  }, [data.currentUser, selectedDate, selectedMember?.id])
+
+  useEffect(() => {
+    if (!data.currentUser || isLoadingWeeklyAnalysis || weeklyAnalysisReport || !canRecord || isGeneratingWeeklyAnalysis || weeklyAnalysisGenerationRef.current) return
+    const viewKey = `${selectedDate}:${selectedMember?.id || ''}`
+    if (weeklyAnalysisAutoAttemptKeyRef.current === viewKey) return
+    weeklyAnalysisAutoAttemptKeyRef.current = viewKey
+    generateWeeklyHealthAnalysis()
+  }, [canRecord, data.currentUser, isGeneratingWeeklyAnalysis, isLoadingWeeklyAnalysis, selectedDate, selectedMember?.id, weeklyAnalysisReport])
+
+  useEffect(() => {
+    if (!weeklyAnalysisReport?.stale || !canRecord || isGeneratingWeeklyAnalysis || weeklyAnalysisGenerationRef.current) return
+    const timer = window.setTimeout(() => generateWeeklyHealthAnalysis(), 90_000)
+    return () => window.clearTimeout(timer)
+  }, [canRecord, isGeneratingWeeklyAnalysis, weeklyAnalysisReport?.stale])
 
   useEffect(() => {
     if (!data.currentUser || !isToday || currentNote || isGeneratingNote || noteGenerationRef.current) return
@@ -1172,6 +1325,7 @@ export default function App() {
       body: JSON.stringify(action),
     }).then((savedAction) => {
       setData((previous) => ({ ...previous, actions: [...previous.actions, savedAction] }))
+      markWeeklyAnalysisStale()
       setLastAction(savedAction)
       setActionBurst({ type, id: savedAction.id })
       window.setTimeout(() => {
@@ -1289,6 +1443,30 @@ export default function App() {
     }
   }
 
+  function markWeeklyAnalysisStale() {
+    setWeeklyAnalysisReport((current) => current ? { ...current, stale: true } : current)
+  }
+
+  async function generateWeeklyHealthAnalysis() {
+    if (!data.currentUser || !selectedMember || !canRecord || selectedDate !== localDateKey() || weeklyAnalysisGenerationRef.current) return
+    const requestKey = `${selectedDate}:${selectedMember.id}`
+    weeklyAnalysisGenerationRef.current = true
+    setIsGeneratingWeeklyAnalysis(true)
+    try {
+      const report = await apiRequest<WeeklyAnalysisReport>('/api/weekly-analysis/generate', {
+        method: 'POST',
+        body: JSON.stringify({ date: selectedDate, memberId: selectedMember.id }),
+      })
+      if (weeklyAnalysisViewKeyRef.current === requestKey) setWeeklyAnalysisReport(report)
+      setRequestError('')
+    } catch {
+      if (weeklyAnalysisViewKeyRef.current === requestKey) setRequestError('近 7 日分析暂时没有生成成功，请稍后重试')
+    } finally {
+      weeklyAnalysisGenerationRef.current = false
+      setIsGeneratingWeeklyAnalysis(false)
+    }
+  }
+
   async function toggleNoteLike() {
     if (!currentUserMember || !isToday || selectedDate !== localDateKey()) return
     try {
@@ -1323,6 +1501,7 @@ export default function App() {
         }),
       })
       setData((previous) => ({ ...previous, members: previous.members.map((member) => member.id === savedMember.id ? savedMember : member) }))
+      markWeeklyAnalysisStale()
       setShowCapacityEditor(false)
       setRequestError('')
     } catch {
@@ -1338,6 +1517,7 @@ export default function App() {
         ...previous,
         actions: previous.actions.filter((item) => item.id !== lastAction.id),
       }))
+      markWeeklyAnalysisStale()
       setLastAction(null)
       setActionBurst(null)
     } catch {
@@ -1359,6 +1539,7 @@ export default function App() {
         ...previous,
         actions: previous.actions.filter((item) => item.date !== selectedDate || item.memberId !== memberId),
       }))
+      markWeeklyAnalysisStale()
       setLastAction(null)
       setShowResetConfirm(false)
     } catch {
@@ -1551,6 +1732,16 @@ export default function App() {
             </section>
 
             <WaterRhythmChart actions={selectedActions} date={selectedDate} />
+
+            <WeeklyAnalysisCard
+              report={weeklyAnalysisReport}
+              loading={isLoadingWeeklyAnalysis}
+              generating={isGeneratingWeeklyAnalysis}
+              canGenerate={canRecord}
+              isToday={isToday}
+              memberName={selectedMember.name}
+              onGenerate={generateWeeklyHealthAnalysis}
+            />
 
           </div>
 

@@ -1418,6 +1418,228 @@ input:focus-visible {
   transform: translateY(-1px);
 }
 
+.weekly-analysis-card {
+  padding: 27px 30px 24px;
+  border: 1px solid #dce8e6;
+  border-radius: 25px;
+  background: linear-gradient(145deg, rgba(250, 255, 252, .97), rgba(243, 249, 247, .94));
+  box-shadow: 0 13px 35px rgba(89, 78, 65, .055);
+}
+
+.weekly-analysis-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.weekly-analysis-heading h2 {
+  margin: 5px 0 4px;
+  color: #3e5d62;
+  font-size: 23px;
+}
+
+.weekly-analysis-heading p {
+  margin: 0;
+  color: #789094;
+  font-size: 11px;
+}
+
+.weekly-analysis-heading > button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid #b8d6d1;
+  border-radius: 10px;
+  color: #477c7c;
+  background: #eff9f5;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.weekly-analysis-heading > button:hover:not(:disabled) {
+  background: #e2f3ed;
+  transform: translateY(-1px);
+}
+
+.weekly-analysis-heading > button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.weekly-analysis-empty {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  gap: 13px;
+  color: #758b8d;
+  font-size: 13px;
+}
+
+.weekly-analysis-empty > span {
+  font-size: 28px;
+}
+
+.weekly-analysis-empty strong,
+.weekly-analysis-empty p {
+  display: block;
+}
+
+.weekly-analysis-empty strong {
+  color: #587276;
+  font-size: 14px;
+}
+
+.weekly-analysis-empty p {
+  margin: 6px 0 0;
+  color: #819497;
+  font-size: 11px;
+}
+
+.weekly-analysis-content {
+  margin-top: 19px;
+}
+
+.weekly-analysis-stale {
+  margin-bottom: 12px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  color: #8b7043;
+  background: #fff7df;
+  font-size: 11px;
+}
+
+.weekly-analysis-verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .68);
+}
+
+.weekly-risk {
+  display: inline-flex;
+  min-width: 58px;
+  height: 33px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.weekly-risk--low { color: #4d8066; background: #e3f4e6; }
+.weekly-risk--watch { color: #9b7043; background: #fff0d7; }
+.weekly-risk--unknown { color: #718388; background: #edf3f3; }
+
+.weekly-analysis-verdict h3 {
+  margin: 0;
+  color: #486269;
+  font-size: 16px;
+}
+
+.weekly-analysis-verdict small {
+  display: block;
+  margin-top: 5px;
+  color: #8a9b9d;
+  font-size: 10px;
+}
+
+.weekly-analysis-summary-grid,
+.weekly-analysis-detail-grid {
+  display: grid;
+  gap: 11px;
+  margin-top: 12px;
+}
+
+.weekly-analysis-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weekly-analysis-summary-grid article {
+  display: flex;
+  gap: 11px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #eef8f5;
+}
+
+.weekly-analysis-summary-grid article > span {
+  color: #78aaa0;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.weekly-analysis-summary-grid h3,
+.weekly-analysis-detail-grid h3 {
+  margin: 0;
+  color: #5a7476;
+  font-size: 12px;
+}
+
+.weekly-analysis-summary-grid p,
+.weekly-analysis-detail-grid li,
+.weekly-analysis-missing p,
+.weekly-analysis-boundary {
+  color: #718589;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.weekly-analysis-summary-grid p {
+  margin: 5px 0 0;
+}
+
+.weekly-analysis-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weekly-analysis-detail-grid article {
+  padding: 14px;
+  border: 1px solid rgba(215, 232, 228, .9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .56);
+}
+
+.weekly-analysis-detail-grid h3 span {
+  margin-right: 4px;
+  color: #72aaa0;
+}
+
+.weekly-analysis-detail-grid ul {
+  margin: 8px 0 0;
+  padding-left: 17px;
+}
+
+.weekly-analysis-detail-grid li + li {
+  margin-top: 5px;
+}
+
+.weekly-analysis-missing {
+  margin-top: 12px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  background: rgba(228, 240, 237, .62);
+}
+
+.weekly-analysis-missing summary {
+  color: #668486;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.weekly-analysis-missing p {
+  margin: 7px 0 0;
+}
+
+.weekly-analysis-boundary {
+  margin: 11px 0 0;
+  color: #8b9a9b;
+  font-size: 10px;
+}
+
 .chart-canvas {
   width: 100%;
   height: 275px;
@@ -3864,6 +4086,31 @@ body {
     align-items: flex-start;
     flex-direction: column;
     gap: 5px;
+  }
+
+  .weekly-analysis-card {
+    padding: 21px 17px 18px;
+    border-radius: 21px;
+  }
+
+  .weekly-analysis-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .weekly-analysis-heading > button {
+    align-self: flex-start;
+  }
+
+  .weekly-analysis-summary-grid,
+  .weekly-analysis-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weekly-analysis-verdict {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .dashboard-side {
