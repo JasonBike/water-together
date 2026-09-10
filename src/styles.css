@@ -1422,7 +1422,9 @@ input:focus-visible {
   padding: 27px 30px 24px;
   border: 1px solid #dce8e6;
   border-radius: 25px;
-  background: linear-gradient(145deg, rgba(250, 255, 252, .97), rgba(243, 249, 247, .94));
+  background:
+    radial-gradient(circle at 94% 7%, rgba(255, 226, 185, .48), transparent 125px),
+    linear-gradient(145deg, rgba(250, 255, 252, .97), rgba(243, 249, 247, .94));
   box-shadow: 0 13px 35px rgba(89, 78, 65, .055);
 }
 
@@ -1509,6 +1511,17 @@ input:focus-visible {
   font-size: 11px;
 }
 
+.weekly-analysis-model-warning {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid #f0d2a7;
+  border-radius: 9px;
+  color: #92734c;
+  background: #fff8e9;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .weekly-analysis-verdict {
   display: flex;
   align-items: center;
@@ -1544,6 +1557,61 @@ input:focus-visible {
   margin-top: 5px;
   color: #8a9b9d;
   font-size: 10px;
+}
+
+.weekly-analysis-issues {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.weekly-analysis-issues--alert {
+  border: 1px solid #f0c5b4;
+  color: #8a5547;
+  background: #fff1eb;
+}
+
+.weekly-analysis-issues--insufficient {
+  border: 1px solid #d8e1df;
+  color: #6f8184;
+  background: #f1f6f5;
+}
+
+.weekly-analysis-issues--clear {
+  border: 1px solid #c9e3d0;
+  color: #4d8066;
+  background: #edf9f0;
+}
+
+.weekly-analysis-issues h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.weekly-analysis-issues h3 span {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .7);
+  place-items: center;
+}
+
+.weekly-analysis-issues ul {
+  margin: 8px 0 0;
+  padding-left: 19px;
+}
+
+.weekly-analysis-issues li,
+.weekly-analysis-no-issue {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.weekly-analysis-no-issue {
+  margin-bottom: 0;
 }
 
 .weekly-analysis-summary-grid,

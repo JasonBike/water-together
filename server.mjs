@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { createReadStream } from 'node:fs'
 import { join, normalize, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
 const rootDir = dirname(fileURLToPath(import.meta.url))
@@ -348,7 +348,7 @@ function averageHealthCounts(counts, days) {
 }
 
 function changePercent(current, previous) {
-  if (!previous) return null
+  if (!previous || previous < 1) return null
   return Math.round(((current - previous) / previous) * 100)
 }
 
@@ -406,7 +406,7 @@ function weeklyAnalysisContext(date, member) {
   const sourcePayload = {
     version: weeklyAnalysisVersion,
     date,
-    cutoffMinute: date === currentDateKey() ? cutoffMinute : 1439,
+    cutoffHour: date === currentDateKey() ? currentClock.hour : 23,
     member: { id: member.id, gender: member.gender, cupCapacity: member.cupCapacity },
     actions: memberActions
       .map(({ id, type, date: actionDate, time, drinkKind, volume }) => ({ id, type, date: actionDate, time, drinkKind, volume }))
@@ -542,12 +542,14 @@ function parseAnalysisJson(content) {
 
 async function generateWeeklyAnalysis(context) {
   const fallback = fallbackWeeklyAnalysis(context)
+  const requestId = randomUUID()
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20_000)
   try {
     const response = await fetch(noteModelEndpoint, {
       method: 'POST',
       signal: controller.signal,
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: noteModel,
@@ -556,9 +558,9 @@ async function generateWeeklyAnalysis(context) {
         messages: [
           {
             role: 'system',
-            content: `你是严谨的个人饮水与排泄健康风险分析助手。基于用户最近 7 天、前 7 天和今日同一时刻对照数据，做医学导向的风险判断。必须引用输入中的具体数字或日期，先考虑漏记和今天尚未结束，不得把准备容量当成实际摄入量，不得把上厕所次数直接当成排尿次数。可以提出脱水、饮水过多、咖啡因影响或排尿异常等医学可能性，但不能写成确诊。riskLevel 只能是“低风险”“需关注”“明显异动”“数据不足”，其中“低风险”仅指相对个人近期记录未见明显异动。只输出 JSON，不要 Markdown。JSON 字段必须是 headline、riskLevel、confidence、todayAssessment、trendAssessment、anomalies、healthPossibilities、actions、missingInformation、warningSigns、dataBoundary；confidence 只能是“低”“中”“高”，后六项均为中文字符串数组。`,
+            content: `你是严谨的个人饮水与排泄健康风险分析助手。基于用户最近 7 天、前 7 天和今日同一时刻对照数据，做医学导向的风险判断。必须引用输入中的具体数字或日期，先考虑漏记和今天尚未结束，不得把准备容量当成实际摄入量，不得把上厕所次数直接当成排尿次数。可以提出脱水、饮水过多、咖啡因影响或排尿异常等医学可能性，但不能写成确诊。riskLevel 只能是“低风险”“需关注”“明显异动”“数据不足”，其中“低风险”仅指相对个人近期记录未见明显异动；如果没有明确异动，anomalies 必须写“未发现明显问题”。当对照基线低于 1 次/天时，不要输出夸张的百分比，改用绝对次数和“基线过低”。只输出 JSON，不要 Markdown。JSON 字段必须是 headline、riskLevel、confidence、todayAssessment、trendAssessment、anomalies、healthPossibilities、actions、missingInformation、warningSigns、dataBoundary；confidence 只能是“低”“中”“高”，后六项均为中文字符串数组。`,
           },
-          { role: 'user', content: `请全面分析以下匿名个人记录：${JSON.stringify(context)}` },
+          { role: 'user', content: `这是第 ${requestId} 次独立分析请求，请不要复用任何旧结论，重新根据以下匿名个人记录完整判断：${JSON.stringify(context)}` },
         ],
       }),
     })
@@ -566,10 +568,10 @@ async function generateWeeklyAnalysis(context) {
     const payload = await response.json()
     const parsed = parseAnalysisJson(payload?.choices?.[0]?.message?.content)
     if (!parsed) throw new Error('weekly analysis model returned invalid JSON')
-    return normalizeWeeklyAnalysis(parsed, fallback)
+    return { analysis: normalizeWeeklyAnalysis(parsed, fallback), source: 'model' }
   } catch (error) {
     console.warn('weekly analysis generation fell back to local analysis:', error.message)
-    return fallback
+    return { analysis: fallback, source: 'fallback' }
   } finally {
     clearTimeout(timeout)
   }
@@ -578,10 +580,14 @@ async function generateWeeklyAnalysis(context) {
 function weeklyAnalysisView(row, stale = false) {
   if (!row) return null
   try {
+    const stored = JSON.parse(row.content)
+    const source = stored?._meta?.source || 'unknown'
+    const { _meta, ...analysis } = stored
     return {
       date: row.date,
       memberId: row.memberId,
-      analysis: JSON.parse(row.content),
+      analysis,
+      generatedBy: source,
       analysisVersion: row.analysisVersion,
       updatedAt: row.updatedAt,
       stale,
@@ -767,10 +773,17 @@ async function handleApi(request, response, url) {
       return
     }
     const context = weeklyAnalysisContext(payload.date, member)
-    const analysis = await generateWeeklyAnalysis(context.modelContext)
+    const generated = await generateWeeklyAnalysis(context.modelContext)
     if (rejectHistoricalWrite(response, payload.date)) return
     const updatedAt = Date.now()
-    upsertWeeklyAnalysis.run(payload.date, payload.memberId, JSON.stringify(analysis), context.sourceHash, weeklyAnalysisVersion, updatedAt)
+    upsertWeeklyAnalysis.run(
+      payload.date,
+      payload.memberId,
+      JSON.stringify({ ...generated.analysis, _meta: { source: generated.source, model: noteModel } }),
+      context.sourceHash,
+      weeklyAnalysisVersion,
+      updatedAt,
+    )
     const saved = selectWeeklyAnalysis.get(payload.date, payload.memberId)
     const latestContext = weeklyAnalysisContext(payload.date, member)
     sendJson(response, 200, weeklyAnalysisView(saved, latestContext.sourceHash !== context.sourceHash))

@@ -77,6 +77,7 @@ type WeeklyAnalysisReport = {
   date: string
   memberId: string
   analysis: WeeklyAnalysisContent
+  generatedBy?: 'model' | 'fallback' | 'unknown'
   analysisVersion: number
   updatedAt: number
   stale: boolean
@@ -917,6 +918,14 @@ type WeeklyAnalysisCardProps = {
 
 function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday, memberName, onGenerate }: WeeklyAnalysisCardProps) {
   const analysis = report?.analysis
+  const issueState = analysis?.riskLevel === '低风险' ? 'clear' : analysis?.riskLevel === '数据不足' ? 'insufficient' : 'alert'
+  const issueItems = analysis
+    ? issueState === 'clear'
+      ? []
+      : issueState === 'insufficient'
+        ? ['有效记录不足，暂时不能可靠判断今天是否正常或是否存在异动。']
+        : analysis.anomalies
+    : []
   const updatedAt = report
     ? new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(report.updatedAt))
     : ''
@@ -925,12 +934,12 @@ function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday,
     <section className="weekly-analysis-card" aria-labelledby="weekly-analysis-title">
       <div className="weekly-analysis-heading">
         <div>
-          <span className="card-kicker"><span>✚</span> PERSONAL HEALTH REVIEW</span>
-          <h2 id="weekly-analysis-title">近 7 日健康分析</h2>
-          <p>{memberName} 的个人记录 · 最近 7 天与前 7 天对照</p>
+          <span className="card-kicker"><span>🫧</span> WATER CHECK-IN</span>
+          <h2 id="weekly-analysis-title">近 7 日小水滴报告</h2>
+          <p>{memberName} 的喝水节奏 · 今天和最近 7 天一起看</p>
         </div>
         <button type="button" onClick={onGenerate} disabled={!canGenerate || generating} title={!canGenerate ? '只能由本人生成当天分析' : undefined}>
-          {generating ? '分析中…' : report ? '重新分析' : '开始分析'}
+          {generating ? '小水滴思考中…' : report ? '再分析一次' : '开始看看'}
         </button>
       </div>
 
@@ -951,14 +960,24 @@ function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday,
             <span className={`weekly-risk weekly-risk--${analysis.riskLevel === '低风险' ? 'low' : analysis.riskLevel === '数据不足' ? 'unknown' : 'watch'}`}>{analysis.riskLevel}</span>
             <div>
               <h3>{analysis.headline}</h3>
-              <small>判断置信度：{analysis.confidence} · 更新于 {updatedAt}</small>
+              <small>判断置信度：{analysis.confidence} · 更新于 {updatedAt} · {report?.generatedBy === 'model' ? '大模型生成' : report?.generatedBy === 'fallback' ? '本地规则兜底' : '已保存报告'}</small>
             </div>
           </div>
+          {report?.generatedBy === 'fallback' && <div className="weekly-analysis-model-warning">当前未连接到大模型，本次显示的是本地规则兜底结果；点击“再分析一次”会再次尝试请求大模型。</div>}
+
+          <section className={`weekly-analysis-issues weekly-analysis-issues--${issueState}`} aria-label="主要问题">
+            <h3><span>{issueState === 'clear' ? '✓' : issueState === 'insufficient' ? '?' : '!'}</span> 主要问题</h3>
+            {issueState === 'clear' ? (
+              <p className="weekly-analysis-no-issue">未发现明显问题，今天的记录与个人近期节奏基本一致。</p>
+            ) : (
+              <ul>{issueItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
+            )}
+          </section>
 
           <div className="weekly-analysis-summary-grid">
             <article>
               <span>01</span>
-              <div><h3>今天是否偏离近期</h3><p>{analysis.todayAssessment}</p></div>
+              <div><h3>今天的状态</h3><p>{analysis.todayAssessment}</p></div>
             </article>
             <article>
               <span>02</span>
@@ -972,7 +991,7 @@ function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday,
               <ul>{analysis.anomalies.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
             </article>
             <article>
-              <h3><span>⚕</span> 医学相关可能性</h3>
+              <h3><span>🩺</span> 可能原因</h3>
               <ul>{analysis.healthPossibilities.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
             </article>
             <article>
@@ -980,7 +999,7 @@ function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday,
               <ul>{analysis.actions.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
             </article>
             <article>
-              <h3><span>!</span> 就医警示</h3>
+              <h3><span>🌟</span> 需要及时留意</h3>
               <ul>{analysis.warningSigns.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
             </article>
           </div>
@@ -989,7 +1008,7 @@ function WeeklyAnalysisCard({ report, loading, generating, canGenerate, isToday,
             <summary>影响判断准确度的缺失信息</summary>
             <p>{analysis.missingInformation.join('、')}</p>
           </details>
-          <p className="weekly-analysis-boundary">{analysis.dataBoundary}</p>
+          <p className="weekly-analysis-boundary">以上判断基于自报打卡，不能替代医生诊断；准备容量不等于实际摄入量，上厕所次数也未区分排尿和排便。</p>
         </div>
       )}
     </section>
